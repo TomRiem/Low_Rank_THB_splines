@@ -1,79 +1,112 @@
 function  [geometry, hmsh, hspace, u, solution_data] = adaptivity_laplace_low_rank (problem_data, method_data, adaptivity_data, plot_data, low_rank_data)
 % ADAPTIVITY_LAPLACE_LOW_RANK
-% Modified version of the GeoPDEs driver **ADAPTIVITY_LAPLACE** that swaps
-% the system assembly/solve phase for a low-rank (tensor-train, TT) pipeline.
-%
-% This function keeps the outer adaptive loop and I/O interface of the
-% original GeoPDEs routine; only the calls that build and solve the linear
-% system are replaced by low-rank counterparts. For the baseline algorithm
-% and semantics of inputs/outputs, see the GeoPDEs documentation:
-%   https://rafavzqz.github.io/geopdes/
+% Adaptive IGA solver for Laplace’s equation using hierarchical spaces and
+% a low-rank (TT) assembly/solve pipeline. Same outer loop as GeoPDEs’
+% adaptivity_laplace, but the system is built/solved by low-rank routines
+% and the solution space is B-splines (geometry may be B-splines or NURBS).
 %
 % [geometry, hmsh, hspace, u, solution_data] = ...
-%   ADAPTIVITY_LAPLACE_LOW_RANK(problem_data, method_data, ...
-%                               adaptivity_data, plot_data, low_rank_data)
+% ADAPTIVITY_LAPLACE_LOW_RANK(problem_data, method_data, ...
+% adaptivity_data, plot_data, low_rank_data)
 %
 % Purpose
 % -------
-% Run an adaptive refinement loop (SOLVE → ESTIMATE → MARK → REFINE) for the
-% Poisson/Laplace problem on hierarchical B-spline/THB spaces while delegating
-% metric/load interpolation and the linear solve to **low-rank (TT)** routines.
-% Everything else (error estimation, marking, refinement, stopping rules)
-% follows the standard GeoPDEs flow.
+% Drive an adaptive refinement loop (SOLVE → ESTIMATE → MARK → REFINE) for the
+% Poisson/Laplace problem on hierarchical meshes, while delegating the linear
+% algebra to low-rank components. The routine:
+% • builds separated (TT) ingredients H and rhs from the geometry/data,
+% • computes the discrete solution with a low-rank solver on the current
+% hierarchical space (B-spline trial/test functions),
+% • estimates the error, marks, and refines as in the standard GeoPDEs flow.
 %
-% Inputs  (as in GeoPDEs, plus low-rank settings)
-% -----------------------------------------------
+% Inputs
+% ------
 % problem_data : struct
-%   .geo_name, .nmnn_sides, .drchlt_sides, .c_diff, .grad_c_diff (opt),
-%   .f, .g (opt), .h, .uex/.graduex (opt, for error checks).
+% • geo_name – geometry file name (GeoPDEs format)
+% • nmnn_sides – sides with Neumann BC (may be empty)
+% • drchlt_sides – sides with Dirichlet BC
+% • c_diff – diffusion coefficient (see SOLVE_LAPLACE)
+% • grad_c_diff – (optional) gradient of c_diff (defaults to zero)
+% • f – source term handle
+% • g – Neumann datum (if nmnn_sides ≠ ∅)
+% • h – Dirichlet datum
+% • uex, graduex – (optional) exact solution/gradient for error check
 %
-% method_data : struct
-%   .degree, .regularity, .nsub_coarse, .nsub_refine, .nquad,
-%   .space_type, .truncated.
+% method_data : struct 
+% • degree – spline degree per direction
+% • regularity – spline continuity per direction
+% • nsub_coarse – initial uniform refinement of the geometry mesh
+% • nsub_refine – refinement factor per adaptive step (e.g. 2 for dyadic)
+% • nquad – # Gauss points (used by standard GeoPDEs parts)
+% • space_type – 'simplified' or 'standard' hierarchical basis
+% • truncated – logical, use THB if true
 %
-% adaptivity_data : struct
-%   .flag ('elements'/'functions'), .mark_strategy, .mark_param, .tol,
-%   .num_max_iter, .max_level, .max_ndof, .max_nel, (opt) .C0_est, etc.
+% adaptivity_data : struct (loop/control)
+% • flag – 'elements' or 'functions' marking
+% • mark_strategy – strategy name (see ADAPTIVITY_MARK)
+% • mark_param – parameter for the chosen marking
+% • max_level – stop when hmsh.nlevels reaches this
+% • max_ndof – stop when hspace.ndof exceeds this
+% • max_nel – stop when hmsh.nel exceeds this
+% • num_max_iter – max adaptive iterations
+% • tol – target tolerance for the global estimator
+% • C0_est – (optional) scaling constant for estimators
+% • adm_class, adm_type – admissibility controls
 %
-% plot_data : struct (optional; defaults set below)
-%   .print_info, .plot_hmesh, .plot_discrete_sol.
+% plot_data : struct (optional; defaults set internally)
+% • print_info – bool
+% • plot_hmesh – bool
+% • plot_discrete_sol– bool
 %
-% low_rank_data : struct (only consumed by the low-rank calls)
-%   This wrapper enforces:
-%     • full_solution = 1   % request full DoF vector from the TT solver
-%   Other fields (e.g., rankTol, rankTol_f, preconditioner, block_format, …)
-%   are passed through to the low-rank interpolation/solve routines.
+% low_rank_data : struct (low-rank settings)
+% This driver only enforces:
+% • full_solution = 1 (request full DoF vector from the low-rank solver).
+% Other fields are passed through to the underlying low-rank routines, e.g.:
+% • rankTol, rankTol_f – TT rounding tolerances (operator/RHS)
+% • preconditioner – preconditioning mode/parameters
+% • any additional fields required by your low-rank assembly/solve stack
 %
-% Outputs (GeoPDEs-compatible)
-% ----------------------------
-% geometry : geometry object
-% hmsh     : hierarchical mesh
-% hspace   : hierarchical hierarchical B-spline/THB space
-% u        : DoF vector of the final iterate (in hspace)
-% solution_data : struct with iteration history (iter, ndof, nel, gest, and
-%                 optionally err_h1s/err_h1/err_l2) and a termination flag
-%                 with the same meaning as in GeoPDEs.
+% Outputs
+% -------
+% geometry : geometry object (see GEO_LOAD)
+% hmsh : hierarchical mesh object (see HIERARCHICAL_MESH)
+% hspace : hierarchical space object (see HIERARCHICAL_SPACE)
+% u : solution DoFs at the last iteration (B-spline trial space)
+% solution_data : struct with convergence history
+% • iter, ndof, nel, gest
+% • err_h1s, err_h1, err_l2 (present if exact solution provided)
+% • flag ∈ { -1,1,2,3,4,5 } (termination reason; same semantics as GeoPDEs)
 %
-% What is different vs. GeoPDEs
-% -----------------------------
-% • Low-rank ingredients and solve:
-%     [H, rhs] = ADAPTIVITY_INTERPOLATION_LOW_RANK(geometry, low_rank_data, problem_data)
-%     [u, ~]   = ADAPTIVITY_SOLVE_LAPLACE_LOW_RANK(H, rhs, hmsh, hspace, low_rank_data)
-% • All remaining steps (ESTIMATE, MARK, REFINE) and the stopping logic are
-%   unchanged from the original **adaptivity_laplace**.
+% How it works
+% ------------
+% 1) Initialize hierarchical mesh & space:
+% [hmsh, hspace, geometry] = ADAPTIVITY_INITIALIZE_LAPLACE(problem_data, method_data).
+% 2) Build low-rank ingredients from geometry & data:
+% low_rank_data.full_solution = 1;
+% [H, rhs] = ADAPTIVITY_INTERPOLATION_LOW_RANK(geometry, low_rank_data, problem_data).
+% (H encodes separated metric/weights; rhs the separated load.)
+% 3) Adaptive loop (k = 1,2,…):
+% SOLVE:
+% [u, ...] = ADAPTIVITY_SOLVE_LAPLACE_LOW_RANK(H, rhs, hmsh, hspace, low_rank_data).
+% (Solution space is B-splines; geometry may be B-splines or NURBS—handled in H/rhs.)
+% (Optional) PLOT current mesh/solution.
+% ESTIMATE:
+% est = ADAPTIVITY_ESTIMATE_LAPLACE(u, hmsh, hspace, problem_data, adaptivity_data);
+% gest = norm(est).
+% STOP if gest < tol or other stopping criteria are met.
+% MARK:
+% [marked, ~] = ADAPTIVITY_MARK(est, hmsh, hspace, adaptivity_data).
+% REFINE:
+% [hmsh, hspace] = ADAPTIVITY_REFINE(hmsh, hspace, marked, adaptivity_data).
 %
 % Notes
 % -----
-% • Geometry can be B-splines or NURBS; the low-rank factors H/rhs embed the
-%   geometric weights/Jacobians. The trial/test space here is B-splines on
-%   the hierarchical space hspace (with or without truncation).
-% • This file is intentionally close to the GeoPDEs original to ease
-%   comparison/maintenance; only minimal changes were introduced around the
-%   low-rank calls and related options.
-%
-% -------------------------------------------------------------------------
-% Below: standard GeoPDEs adaptive loop with low-rank interpolation & solve.
-% -------------------------------------------------------------------------
+% • Geometry type (B-spline vs NURBS) does not constrain this driver:
+% the low-rank factors H/rhs already embed the geometric weights/Jacobians.
+% The trial/test solution fields are B-splines on the hierarchical space.
+% • The routine preserves the standard GeoPDEs output interface and stopping
+% logic; it only swaps the system assembly/solve phase for low-rank calls.
+% • Error estimation, marking, and refinement are those from the GeoPDEs workflow.
 
     if (nargin == 3)
       plot_data = struct ('print_info', true, 'plot_hmesh', false, 'plot_discrete_sol', false);
@@ -110,7 +143,7 @@ function  [geometry, hmsh, hspace, u, solution_data] = adaptivity_laplace_low_ra
     
     
     % Initialization of the hierarchical mesh and space
-    [hmsh, hspace, geometry] = adaptivity_initialize_laplace (problem_data, method_data);
+    [hmsh, hspace, geometry] = adaptivity_initialize_laplace(problem_data, method_data);
     
     [H, rhs] = adaptivity_interpolation_low_rank(geometry, low_rank_data, problem_data);
     % ADAPTIVE LOOP

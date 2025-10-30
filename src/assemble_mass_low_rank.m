@@ -291,33 +291,43 @@ function [TT_M, M_full, low_rank_data, time] = assemble_mass_low_rank(H, hmsh, h
                 [isC, ic] = ismember(a_3, cuboid_splines_level{i_lev}.indices{3});
                 inside = isA & isB & isC;                               
                 locLin{i_lev} = sub2ind(cuboid_splines_level{i_lev}.tensor_size, ia(inside), ib(inside), ic(inside));
+                I1    = cuboid_splines_level{i_lev}.indices{1};
+                I2    = cuboid_splines_level{i_lev}.indices{2};
+                I3    = cuboid_splines_level{i_lev}.indices{3};
                 for i_sa = 1:cuboid_splines_system{i_lev}.n_active_cuboids
-                    splines_active_indices = cell(3,1);
-                    splines_active_indices{1} = cuboid_splines_system{i_lev}.inverse_shifted_indices{1}(cuboid_splines_system{i_lev}.active_cuboids{i_sa}(1):(cuboid_splines_system{i_lev}.active_cuboids{i_sa}(1) + cuboid_splines_system{i_lev}.active_cuboids{i_sa}(4) - 1));
-                    splines_active_indices{2} = cuboid_splines_system{i_lev}.inverse_shifted_indices{2}(cuboid_splines_system{i_lev}.active_cuboids{i_sa}(2):(cuboid_splines_system{i_lev}.active_cuboids{i_sa}(2) + cuboid_splines_system{i_lev}.active_cuboids{i_sa}(5) - 1));
-                    splines_active_indices{3} = cuboid_splines_system{i_lev}.inverse_shifted_indices{3}(cuboid_splines_system{i_lev}.active_cuboids{i_sa}(3):(cuboid_splines_system{i_lev}.active_cuboids{i_sa}(3) + cuboid_splines_system{i_lev}.active_cuboids{i_sa}(6) - 1));
-                    X = eye(hspace.space_of_level(level(i_lev)).ndof_dir(1));
-                    X = X(cuboid_splines_level{i_lev}.indices{1}, splines_active_indices{1});
-                    Y = eye(hspace.space_of_level(level(i_lev)).ndof_dir(2));
-                    Y = Y(cuboid_splines_level{i_lev}.indices{2}, splines_active_indices{2});
-                    Z = eye(hspace.space_of_level(level(i_lev)).ndof_dir(3));
-                    Z = Z(cuboid_splines_level{i_lev}.indices{3}, splines_active_indices{3});
-                    J{count} = tt_matrix({X;Y;Z});
-                    lev_of(count)= i_lev;
+                    a = cuboid_splines_system{i_lev}.active_cuboids{i_sa};
+                    J1 = cuboid_splines_system{i_lev}.inverse_shifted_indices{1}( a(1) : a(1)+a(4)-1 );
+                    J2 = cuboid_splines_system{i_lev}.inverse_shifted_indices{2}( a(2) : a(2)+a(5)-1 );
+                    J3 = cuboid_splines_system{i_lev}.inverse_shifted_indices{3}( a(3) : a(3)+a(6)-1 );
+                    [t1, p1] = ismember(I1, J1);
+                    r1 = find(t1); 
+                    X = sparse(r1, p1(t1), 1, numel(I1), numel(J1));
+                    [t2, p2] = ismember(I2, J2); 
+                    r2 = find(t2); 
+                    Y = sparse(r2, p2(t2), 1, numel(I2), numel(J2));
+                    [t3, p3] = ismember(I3, J3); 
+                    r3 = find(t3); 
+                    Z = sparse(r3, p3(t3), 1, numel(I3), numel(J3));
+                    if isempty(r1) || isempty(r2) || isempty(r3)
+                        continue
+                    end
+                    J{count}    = tt_matrix({X; Y; Z});
+                    lev_of(count) = i_lev;
                     count = count + 1;
                 end
-            end         
+            end
             M_level = cell(nlevels,nlevels);
             for i_lev = 1:nlevels
                 for j_lev = 1:nlevels
-                    M_level{i_lev,j_lev} = zeros(numel(hspace.active{level(i_lev)}), numel(hspace.active{level(j_lev)}));
+                    M_level{i_lev,j_lev} = sparse(numel(hspace.active{level(i_lev)}), numel(hspace.active{level(j_lev)}));
                 end
             end
             for ii = 1:n_cub
                 li   = lev_of(ii);   
                 for jj = 1:ii      
                     lj   = lev_of(jj);
-                    Mij  = full(J{ii} * TT_M{ii,jj} * J{jj}');
+                    Mij  = J{ii} * TT_M{ii,jj} * J{jj}';
+                    Mij  = sparse_matrix(Mij);
                     M_level{li,lj} = M_level{li,lj} + Mij(locLin{li}, locLin{lj}); 
                     if li ~= lj
                         M_level{lj,li} = M_level{lj,li} + Mij(locLin{li}, locLin{lj})';
@@ -339,7 +349,7 @@ function [TT_M, M_full, low_rank_data, time] = assemble_mass_low_rank(H, hmsh, h
             locLin = cell(nlevels, 1);
             for i_lev = 1:nlevels
                 J{i_lev} = cell(cuboid_splines_system{i_lev}.n_active_cuboids, 1);
-                M_level{i_lev, i_lev} = zeros(prod(cuboid_splines_level{i_lev}.tensor_size), prod(cuboid_splines_level{i_lev}.tensor_size));
+                M_level{i_lev, i_lev} = sparse(prod(cuboid_splines_level{i_lev}.tensor_size), prod(cuboid_splines_level{i_lev}.tensor_size));
                 [a_1, a_2, a_3] = ind2sub(hspace.space_of_level(level(i_lev)).ndof_dir, hspace.active{level(i_lev)});
                 [isA, ia] = ismember(a_1, cuboid_splines_level{i_lev}.indices{1});  
                 [isB, ib] = ismember(a_2, cuboid_splines_level{i_lev}.indices{2});
@@ -361,17 +371,17 @@ function [TT_M, M_full, low_rank_data, time] = assemble_mass_low_rank(H, hmsh, h
                     cols = splines_active_indices{3};
                     Z = sparse(rows, cols, 1, cuboid_splines_level{i_lev}.tensor_size(3), cuboid_splines_system{i_lev}.tensor_size(3));
                     J{i_lev}{i_sa} = tt_matrix({X; Y; Z});
-                    M_level{i_lev, i_lev} = M_level{i_lev, i_lev} + full(J{i_lev}{i_sa}*TT_M{i_lev, i_lev}*J{i_lev}{i_sa}');
+                    M_level{i_lev, i_lev} = M_level{i_lev, i_lev} + sparse_matrix(J{i_lev}{i_sa}*TT_M{i_lev, i_lev}*J{i_lev}{i_sa}');
                     for j_sa = (i_sa-1):-1:1
-                        M_level{i_lev, i_lev} = M_level{i_lev, i_lev} + full(J{i_lev}{j_sa}*TT_M{i_lev, i_lev}*J{i_lev}{i_sa}');
-                        M_level{i_lev, i_lev} = M_level{i_lev, i_lev} + full(J{i_lev}{i_sa}*TT_M{i_lev, i_lev}*J{i_lev}{j_sa}');
+                        M_level{i_lev, i_lev} = M_level{i_lev, i_lev} + sparse_matrix(J{i_lev}{j_sa}*TT_M{i_lev, i_lev}*J{i_lev}{i_sa}');
+                        M_level{i_lev, i_lev} = M_level{i_lev, i_lev} + sparse_matrix(J{i_lev}{i_sa}*TT_M{i_lev, i_lev}*J{i_lev}{j_sa}');
                     end
                 end
                 for j_lev = (i_lev-1):-1:1
-                    M_level{i_lev, j_lev} = zeros(prod(cuboid_splines_level{i_lev}.tensor_size), prod(cuboid_splines_level{j_lev}.tensor_size));
+                    M_level{i_lev, j_lev} = sparse(prod(cuboid_splines_level{i_lev}.tensor_size), prod(cuboid_splines_level{j_lev}.tensor_size));
                     for i_sa = 1:cuboid_splines_system{i_lev}.n_active_cuboids
                         for j_sa = 1:cuboid_splines_system{j_lev}.n_active_cuboids
-                            M_level{i_lev, j_lev} = M_level{i_lev, j_lev} + full(J{i_lev}{i_sa}*TT_M{i_lev, j_lev}*J{j_lev}{j_sa}');
+                            M_level{i_lev, j_lev} = M_level{i_lev, j_lev} + sparse_matrix(J{i_lev}{i_sa}*TT_M{i_lev, j_lev}*J{j_lev}{j_sa}');
                         end
                     end
                     M_level{j_lev, i_lev} = M_level{i_lev, j_lev}';

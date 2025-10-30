@@ -121,9 +121,10 @@ function [H, opt] = lowRank_w(H, opt)
         opt.discardFull = 1;
     end
     
-    H.stiffness.Rmax = min(H.weightFun.n);
+    
     if H.dim == 2
         if opt.stiffness == 1
+            H.stiffness.Rmax = min(H.weightFun.n);
             H.stiffness.SVDU = zeros(H.weightFun.n(1), H.stiffness.Rmax, 3);
             H.stiffness.SVDV = zeros(H.weightFun.n(2), H.stiffness.Rmax, 3);
             H.stiffness.SVDWeights = zeros(H.stiffness.Rmax, 3);

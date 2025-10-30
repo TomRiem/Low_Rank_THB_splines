@@ -109,7 +109,7 @@ function [TT_system, cuboid_splines_system, low_rank_data] = assemble_system_for
         cuboid_splines_system{i_lev} = cuboid_detection(hspace.active{level(i_lev)}, hspace.space_of_level(level(i_lev)).ndof_dir, true, true, true, true, true, true);
         TT_system{i_lev, i_lev} = tt_zeros([cuboid_splines_system{i_lev}.tensor_size', cuboid_splines_system{i_lev}.tensor_size']);
         splines_active_indices = cell(cuboid_splines_system{i_lev}.n_active_cuboids, 1);
-        J{i_lev} = cell(cuboid_splines_system{i_lev}.n_active_cuboids, 1);
+        J{i_lev} = tt_zeros([cuboid_splines_level{i_lev}.tensor_size', cuboid_splines_system{i_lev}.tensor_size']);
         for i_sa = 1:cuboid_splines_system{i_lev}.n_active_cuboids
             splines_active_indices{i_sa} = cell(3,1);
             
@@ -127,18 +127,11 @@ function [TT_system, cuboid_splines_system, low_rank_data] = assemble_system_for
             rows = cuboid_splines_level{i_lev}.shifted_indices{3}(cuboid_splines_system{i_lev}.inverse_shifted_indices{3}(splines_active_indices{i_sa}{3}));
             cols = splines_active_indices{i_sa}{3};
             Z = sparse(rows, cols, 1, cuboid_splines_level{i_lev}.tensor_size(3), cuboid_splines_system{i_lev}.tensor_size(3));
-
             
-            J{i_lev}{i_sa} = tt_matrix({X; Y; Z});
-            TT_system{i_lev, i_lev} = round(TT_system{i_lev, i_lev} + ...
-                J{i_lev}{i_sa}'*TT_system_all{i_lev, i_lev}*J{i_lev}{i_sa}, low_rank_data.rankTol);
-            for j_sa = (i_sa-1):-1:1
-                TT_system{i_lev, i_lev} = round(TT_system{i_lev, i_lev} + ...
-                    J{i_lev}{j_sa}'*TT_system_all{i_lev, i_lev}*J{i_lev}{i_sa}, low_rank_data.rankTol);
-                TT_system{i_lev, i_lev} = round(TT_system{i_lev, i_lev} + ...
-                    J{i_lev}{i_sa}'*TT_system_all{i_lev, i_lev}*J{i_lev}{j_sa}, low_rank_data.rankTol);
-            end
+            J{i_lev} = J{i_lev} + tt_matrix({X; Y; Z});
         end
+        TT_system{i_lev, i_lev} = round(J{i_lev}'*TT_system_all{i_lev, i_lev}, low_rank_data.rankTol);
+        TT_system{i_lev, i_lev} = round(TT_system{i_lev, i_lev}*J{i_lev}, low_rank_data.rankTol);
         for i_deact = 1:cuboid_splines_system{i_lev}.n_not_active_cuboids
             x_cor = cuboid_splines_system{i_lev}.not_active_cuboids{i_deact}(1):(cuboid_splines_system{i_lev}.not_active_cuboids{i_deact}(1) + cuboid_splines_system{i_lev}.not_active_cuboids{i_deact}(4) - 1);
             y_cor = cuboid_splines_system{i_lev}.not_active_cuboids{i_deact}(2):(cuboid_splines_system{i_lev}.not_active_cuboids{i_deact}(2) + cuboid_splines_system{i_lev}.not_active_cuboids{i_deact}(5) - 1);
@@ -146,17 +139,11 @@ function [TT_system, cuboid_splines_system, low_rank_data] = assemble_system_for
             X = sparse(x_cor, x_cor, 1, cuboid_splines_system{i_lev}.tensor_size(1), cuboid_splines_system{i_lev}.tensor_size(1));
             Y = sparse(y_cor, y_cor, 1, cuboid_splines_system{i_lev}.tensor_size(2), cuboid_splines_system{i_lev}.tensor_size(2));
             Z = sparse(z_cor, z_cor, 1, cuboid_splines_system{i_lev}.tensor_size(3), cuboid_splines_system{i_lev}.tensor_size(3));
-            TT_system{i_lev,i_lev} = round(TT_system{i_lev,i_lev} + tt_matrix({X; Y; Z}), ...
-                low_rank_data.rankTol);
+            TT_system{i_lev,i_lev} = TT_system{i_lev,i_lev} + tt_matrix({X; Y; Z});
         end
         for j_lev = (i_lev-1):-1:1
-            TT_system{i_lev, j_lev} = tt_zeros([cuboid_splines_system{i_lev}.tensor_size', cuboid_splines_system{j_lev}.tensor_size']);
-            for i_sa = 1:cuboid_splines_system{i_lev}.n_active_cuboids
-                for j_sa = 1:cuboid_splines_system{j_lev}.n_active_cuboids
-                    TT_system{i_lev, j_lev} = round(TT_system{i_lev, j_lev} + ...
-                        J{i_lev}{i_sa}'*TT_system_all{i_lev, j_lev}*J{j_lev}{j_sa}, low_rank_data.rankTol);
-                end
-            end
+            TT_system{i_lev, j_lev} = round(J{i_lev}'*TT_system_all{i_lev, j_lev}, low_rank_data.rankTol);
+            TT_system{i_lev, j_lev} = round(TT_system{i_lev, j_lev}*J{j_lev}, low_rank_data.rankTol);
             TT_system{j_lev, i_lev} = TT_system{i_lev, j_lev}';
         end
     end
