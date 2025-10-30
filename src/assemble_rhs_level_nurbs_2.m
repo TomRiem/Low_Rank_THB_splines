@@ -29,8 +29,8 @@ function [TT_rhs] = assemble_rhs_level_nurbs_2(H, rhs, Tweights, level, level_in
 %                         • rhs.fv{d}{·}   : factor vectors (filled locally).
 %
 % Tweights              Cell array with per-level, per-direction univariate
-%                       **NURBS weights**; Tweights{ℓ}{d} is the 1D weight vector
-%                       along direction d on level ℓ, used to form rational bases.
+%                       **NURBS weights**; Tweights{l}{d} is the 1D weight vector
+%                       along direction d on level l, used to form rational bases.
 %
 % level                 Vector of kept hierarchy levels (e.g., pruned of empty).
 % level_ind             Position into 'level' indicating the current level.
@@ -38,7 +38,7 @@ function [TT_rhs] = assemble_rhs_level_nurbs_2(H, rhs, Tweights, level, level_in
 % cuboid_cells          Per-level cuboid decomposition of cells on this level,
 %                       with fields describing active and not-active cuboids.
 %                       At index {level_ind} it provides:
-%                         • indices{1|2|3}           : local→global knot-span windows.
+%                         • indices{1|2|3}           : local->global knot-span windows.
 %                         • not_active_cuboids{i}    : [i1 i2 i3 n1 n2 n3] start+extent
 %                                                     of the i-th not-active cuboid.
 %                         • n_not_active_cuboids     : number of not-active cuboids.
@@ -103,14 +103,11 @@ function [TT_rhs] = assemble_rhs_level_nurbs_2(H, rhs, Tweights, level, level_in
 % • Complement strategy: integrating once over the whole restricted window and
 %   subtracting a few not-active cuboids is cheaper when
 %   n_not_active + 1 < n_active.
-%
 % • NURBS specifics: UNIVARIATE_F_AREA_NURBS uses Tweights to convert polynomial
 %   B-spline factors into the correct **rational** ones, preserving separability.
-%
 % • Indexing/layout: The output TT block lives in the *local* spline index set
 %   given by cuboid_splines_level{level_ind}.tensor_size. Global assembly is
 %   handled later by basis-change/packing routines.
-%
 % • Practical tips:
 %   – Rounding tolerance rankTol_f balances accuracy and compression of TT ranks.
 %   – The rank loops scale with rhs.R(1)*rhs.R_f(1) × rhs.R(3)*rhs.R_f(3); keep

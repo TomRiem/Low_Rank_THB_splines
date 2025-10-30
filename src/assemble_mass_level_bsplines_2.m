@@ -29,7 +29,7 @@ function [TT_M] = assemble_mass_level_bsplines_2(H, level, level_ind, cuboid_cel
 % cuboid_splines_level  Per-level cuboid decomposition of active spline indices
 %                       (defines the local row/col tensor-product block size).
 % hspace                Hierarchical space object (access to ndofs/knots).
-% hmsh                  Hierarchical mesh object (cells → knot spans).
+% hmsh                  Hierarchical mesh object (cells -> knot spans).
 % low_rank_data         Options (e.g., rankTol for TT rounding).
 %
 % Outputs

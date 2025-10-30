@@ -32,7 +32,7 @@ function [TT_K] = assemble_stiffness_level_nurbs_1(H, Tweights, level, level_ind
 %
 % cuboid_cells          Per-level cuboid decomposition of mesh cells for integration.
 %                       At index {level_ind} it provides:
-%                         • indices{1|2|3}           : local→global knot-span windows.
+%                         • indices{1|2|3}           : local->global knot-span windows.
 %                         • active_cuboids{i}        : [i1 i2 i3 n1 n2 n3] start+extent
 %                                                     of the i-th active cuboid.
 %                         • n_active_cuboids         : number of active cuboids.

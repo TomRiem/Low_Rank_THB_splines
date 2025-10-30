@@ -28,8 +28,8 @@ function [TT_K] = assemble_stiffness_level_nurbs_2(H, Tweights, level, level_ind
 %                           (decides which rank counters couple in j/k loops).
 %
 % Tweights              Cell array with per-level, per-direction univariate
-%                       **NURBS weights**; Tweights{ℓ}{d} is the 1D weight vector
-%                       along direction d on level ℓ, used to form rational bases
+%                       **NURBS weights**; Tweights{l}{d} is the 1D weight vector
+%                       along direction d on level l, used to form rational bases
 %                       and their derivatives.
 %
 % level                 Vector of kept hierarchy levels (e.g., pruned of empty).
@@ -38,7 +38,7 @@ function [TT_K] = assemble_stiffness_level_nurbs_2(H, Tweights, level, level_ind
 % cuboid_cells          Per-level cuboid decomposition of cells on this level,
 %                       with fields describing active and not-active cuboids.
 %                       At index {level_ind} it provides:
-%                         • indices{1|2|3}           : local→global knot-span windows.
+%                         • indices{1|2|3}           : local->global knot-span windows.
 %                         • not_active_cuboids{i}    : [i1 i2 i3 n1 n2 n3] start+extent
 %                                                     of the i-th not-active cuboid.
 %                         • n_not_active_cuboids     : number of not-active cuboids.

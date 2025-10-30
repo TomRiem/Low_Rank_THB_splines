@@ -36,8 +36,8 @@ function [TT_K, TT_rhs, cuboid_splines_system, precon, low_rank_data] = assemble
 %
 % hspace : struct / object
 % Hierarchical spline space with fields:
-% .active{ℓ} – active DOF indices of level ℓ (full grid)
-% .space_of_level(ℓ).ndof_dir– [n1,n2,n3] per level
+% .active{l} – active DOF indices of level l (full grid)
+% .space_of_level(l).ndof_dir– [n1,n2,n3] per level
 % Only these fields are accessed here.
 %
 % nlevels : scalar
@@ -47,7 +47,7 @@ function [TT_K, TT_rhs, cuboid_splines_system, precon, low_rank_data] = assemble
 % For each kept level, the level-local index mapping (already created by
 % CUBOID_DETECTION at assembly time), with fields:
 % .tensor_size(d) – shrunk 1D size in dir d
-% .shifted_indices{d}(i_full) – full → shrunk index map (0 if dropped)
+% .shifted_indices{d}(i_full) – full -> shrunk index map (0 if dropped)
 % .indices{d} – kept full indices (if requested upstream)
 %
 % precon : struct (input/output)

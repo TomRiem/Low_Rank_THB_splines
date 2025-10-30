@@ -30,7 +30,7 @@ function H = univariate_gradu_gradv_area_bsplines(H, hspace, level, level_ind, k
 %   CUBOID_SPLINES_LEVEL
 %                      From CUBOID_DETECTION on the *solution DOF* grid; for LEVEL_IND it provides:
 %                        .tensor_size(d)                     local #DOFs in direction d
-%                        .shifted_indices{d}(global_idx)     → local (shrunk) index
+%                        .shifted_indices{d}(global_idx)     -> local (shrunk) index
 %
 %   Output (augments H)
 %   -------------------

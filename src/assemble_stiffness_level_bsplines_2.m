@@ -32,7 +32,7 @@ function [TT_K] = assemble_stiffness_level_bsplines_2(H, level, level_ind, cuboi
 %                       (defines the local DOF box); includes:
 %                         .tensor_size = [n1 n2 n3]
 % hspace                Hierarchical space object (access to knots/ndofs per level).
-% hmsh                  Hierarchical mesh object (cells → knot spans, per level).
+% hmsh                  Hierarchical mesh object (cells -> knot spans, per level).
 % low_rank_data         Options:
 %                         .rankTol – TT rounding tolerance for stiffness accumulation.
 %

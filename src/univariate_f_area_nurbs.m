@@ -40,7 +40,7 @@ function [rhs] = univariate_f_area_nurbs(rhs, H, hspace, level, level_ind, knot_
 %                     From CUBOID_DETECTION on the **solution DOF** grid (here: NURBS).
 %                     For LEVEL_IND it provides:
 %                       .tensor_size(d)                    local #DOFs along direction d
-%                       .shifted_indices{d}(global_idx)    → local (shrunk) index
+%                       .shifted_indices{d}(global_idx)    -> local (shrunk) index
 %
 % TWEIGHTS            Cell array with **solution-space NURBS weights** per kept level and
 %                     per direction, used by evalNURBS inside the quadrature:

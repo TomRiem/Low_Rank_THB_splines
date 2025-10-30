@@ -1,6 +1,6 @@
 function C = basis_change_bsplines(level, level_ind, hspace, cuboid_splines_level, low_rank_data)
 % BASIS_CHANGE_BSPLINES
-% Two-scale (coarse→fine) operator without truncation for B-spline solution spaces (TT form).
+% Two-scale (coarse->fine) operator without truncation for B-spline solution spaces (TT form).
 %
 %   C = BASIS_CHANGE_BSPLINES(LEVEL, LEVEL_IND, HSPACE, CUBOID_SPLINES_LEVEL, LOW_RANK_DATA)
 %
@@ -18,8 +18,8 @@ function C = basis_change_bsplines(level, level_ind, hspace, cuboid_splines_leve
 % LEVEL_IND             Position (≥2) in LEVEL specifying the current fine kept level.
 %
 % HSPACE                Hierarchical spline space with fields:
-%   .space_of_level(ℓ).ndof_dir      [1×3] univariate DOFs per direction
-%   .Proj{ℓ}{d}                       univariate coarse→fine two-scale matrix (dir d)
+%   .space_of_level(l).ndof_dir      [1×3] univariate DOFs per direction
+%   .Proj{l}{d}                       univariate coarse->fine two-scale matrix (dir d)
 %
 % CUBOID_SPLINES_LEVEL  Cell (per kept level) from CUBOID_DETECTION on the **solution DOF** grid.
 %                       For each kept level k it stores:
@@ -36,20 +36,20 @@ function C = basis_change_bsplines(level, level_ind, hspace, cuboid_splines_leve
 %
 % How it works
 % ------------
-% Let ℓ_c = LEVEL(LEVEL_IND-1) (coarse) and ℓ_f = LEVEL(LEVEL_IND) (fine).
+% Let l_c = LEVEL(LEVEL_IND-1) (coarse) and l_f = LEVEL(LEVEL_IND) (fine).
 %
-% • Consecutive kept levels (ℓ_f = ℓ_c + 1):
+% • Consecutive kept levels (l_f = l_c + 1):
 %       For d = 1..3:
-%         P_d = HSPACE.Proj{ℓ_c}{d};
+%         P_d = HSPACE.Proj{l_c}{d};
 %         P_d = P_d( CUBOID_SPLINES_LEVEL{LEVEL_IND}.indices{d}, ...
 %                    CUBOID_SPLINES_LEVEL{LEVEL_IND-1}.indices{d} );
 %       C = tt_matrix({P_1; P_2; P_3});
 %
-% • Skipped levels (ℓ_f > ℓ_c + 1):
-%       Start with the first step ℓ_c → ℓ_c+1:
+% • Skipped levels (l_f > l_c + 1):
+%       Start with the first step l_c -> l_c+1:
 %         Build C = tt_matrix({P_1; P_2; P_3}) cropped to the proper index boxes.
-%       For each intermediate j = ℓ_c+2 : ℓ_f:
-%         Build the step map C_tmp_tt = tt_matrix({P_1; P_2; P_3}) between j-1 → j
+%       For each intermediate j = l_c+2 : l_f:
+%         Build the step map C_tmp_tt = tt_matrix({P_1; P_2; P_3}) between j-1 -> j
 %         (cropped to indices of those levels) and update
 %              C = round( C_tmp_tt * C, LOW_RANK_DATA.rankTol ).
 %

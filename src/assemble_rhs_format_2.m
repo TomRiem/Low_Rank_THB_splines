@@ -26,7 +26,7 @@ function [TT_rhs, cuboid_splines_system, low_rank_data] = assemble_rhs_format_2(
 %     Global indices of the kept hierarchical levels (ascending).
 %
 % hspace : hierarchical spline space
-%     Used fields: .active{ℓ}, .space_of_level(ℓ).ndof_dir
+%     Used fields: .active{l}, .space_of_level(l).ndof_dir
 %
 % nlevels : scalar
 %     Number of kept levels (length(level)).

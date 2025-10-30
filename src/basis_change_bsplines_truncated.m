@@ -1,6 +1,6 @@
 function C = basis_change_bsplines_truncated(level, level_ind, hspace, cuboid_splines_level, low_rank_data)
 % BASIS_CHANGE_BSPLINES_TRUNCATED
-% Two-scale (coarse→fine) operator with THB truncation, assembled cuboid-wise in TT form.
+% Two-scale (coarse->fine) operator with THB truncation, assembled cuboid-wise in TT form.
 %
 %   C = BASIS_CHANGE_BSPLINES_TRUNCATED(LEVEL, LEVEL_IND, HSPACE, ...
 %                                       CUBOID_SPLINES_LEVEL, LOW_RANK_DATA)
@@ -22,9 +22,9 @@ function C = basis_change_bsplines_truncated(level, level_ind, hspace, cuboid_sp
 % LEVEL_IND             Position (≥2) in LEVEL specifying the current fine kept level.
 %
 % HSPACE                Hierarchical B-spline space with fields:
-%   .space_of_level(ℓ).ndof_dir      [1×3] univariate DOFs per direction
-%   .Proj{ℓ}{d}                       univariate coarse→fine two-scale matrix (dir d)
-%   .active{ℓ}, .deactivated{ℓ}       fine-level basis indices for THB truncation
+%   .space_of_level(l).ndof_dir      [1×3] univariate DOFs per direction
+%   .Proj{l}{d}                       univariate coarse->fine two-scale matrix (dir d)
+%   .active{l}, .deactivated{l}       fine-level basis indices for THB truncation
 %
 % CUBOID_SPLINES_LEVEL  Cell (per kept level) from CUBOID_DETECTION on the **solution DOF grid**.
 %                       For each kept level k it stores:
@@ -41,13 +41,13 @@ function C = basis_change_bsplines_truncated(level, level_ind, hspace, cuboid_sp
 %
 % How it works
 % ------------
-% 1) Identify the coarse and fine kept levels: ℓ_c = LEVEL(LEVEL_IND-1), ℓ_f = LEVEL(LEVEL_IND).
+% 1) Identify the coarse and fine kept levels: l_c = LEVEL(LEVEL_IND-1), l_f = LEVEL(LEVEL_IND).
 % 2) Crop the univariate two-scale operators to the local tensor boxes:
-%       Proj_d = HSPACE.Proj{ℓ_c}{d}( indices_f{d}, indices_c{d} );
+%       Proj_d = HSPACE.Proj{l_c}{d}( indices_f{d}, indices_c{d} );
 %    where indices_f{d} = CUBOID_SPLINES_LEVEL{LEVEL_IND}.indices{d} and
 %          indices_c{d} = CUBOID_SPLINES_LEVEL{LEVEL_IND-1}.indices{d}.
 % 3) Detect truncation rows on the fine level inside the local box by running
-%    CUBOID_DETECTION on the union of HSPACE.active{ℓ_f} and HSPACE.deactivated{ℓ_f}
+%    CUBOID_DETECTION on the union of HSPACE.active{l_f} and HSPACE.deactivated{l_f}
 %    (bounded to the local indices). This yields a few axis-aligned **active** and
 %    **not-active** cuboids.
 % 4) Assemble the truncated operator with few Kronecker/TT terms:

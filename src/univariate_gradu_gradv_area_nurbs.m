@@ -33,7 +33,7 @@ function H = univariate_gradu_gradv_area_nurbs(H, hspace, level, level_ind, knot
 % CUBOID_SPLINES_LEVEL   From CUBOID_DETECTION on the **solution DOF** grid (here: NURBS).
 %                        For LEVEL_IND it provides:
 %                          .tensor_size(d)                   local #DOFs along direction d
-%                          .shifted_indices{d}(global_idx)   → local (shrunk) index
+%                          .shifted_indices{d}(global_idx)   -> local (shrunk) index
 %
 % TWEIGHTS               Cell array with **solution-space NURBS weights** per kept level and per
 %                        direction, used by evalNURBS / evalNURBSDeriv inside the quadrature:

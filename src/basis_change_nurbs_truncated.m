@@ -1,6 +1,6 @@
 function C = basis_change_nurbs_truncated(Tweights, level, level_ind, hspace, cuboid_splines_level, low_rank_data)
 % BASIS_CHANGE_NURBS_TRUNCATED
-% Two-scale (coarse→fine) operator with THB truncation for NURBS solution spaces (TT form).
+% Two-scale (coarse->fine) operator with THB truncation for NURBS solution spaces (TT form).
 %
 %   C = BASIS_CHANGE_NURBS_TRUNCATED(TWEIGHTS, LEVEL, LEVEL_IND, ...
 %                                    HSPACE, CUBOID_SPLINES_LEVEL, LOW_RANK_DATA)
@@ -15,8 +15,8 @@ function C = basis_change_nurbs_truncated(Tweights, level, level_ind, hspace, cu
 %
 % Inputs
 % ------
-% TWEIGHTS             Cell array indexed by level ℓ, each entry is {w₁, w₂, w₃} with
-%                      univariate weight vectors for the NURBS basis of level ℓ in each
+% TWEIGHTS             Cell array indexed by level l, each entry is {w₁, w₂, w₃} with
+%                      univariate weight vectors for the NURBS basis of level l in each
 %                      direction. Sizes are compatible with the rows/cols of HSPACE.Proj.
 %                      (The code uses: Proj_d = Proj_d .* w_d^(coarse) ./ (w_d^(fine))'.)
 %
@@ -24,11 +24,11 @@ function C = basis_change_nurbs_truncated(Tweights, level, level_ind, hspace, cu
 % LEVEL_IND             Position (≥2) in LEVEL specifying the current fine kept level.
 %
 % HSPACE                Hierarchical NURBS space with fields:
-%   .space_of_level(ℓ).ndof_dir      [1×3] univariate DOFs per direction
-%   .Proj{ℓ}{d}                       univariate coarse→fine two-scale matrix (dir d),
+%   .space_of_level(l).ndof_dir      [1×3] univariate DOFs per direction
+%   .Proj{l}{d}                       univariate coarse->fine two-scale matrix (dir d),
 %                                     originally for B-splines (polynomial); we reweight
 %                                     it to NURBS via TWEIGHTS.
-%   .active{ℓ}, .deactivated{ℓ}       indices for THB truncation at level ℓ.
+%   .active{l}, .deactivated{l}       indices for THB truncation at level l.
 %
 % CUBOID_SPLINES_LEVEL  Cell (per kept level) from CUBOID_DETECTION on the **solution DOF grid**.
 %                       For each kept level k it stores:
@@ -45,16 +45,16 @@ function C = basis_change_nurbs_truncated(Tweights, level, level_ind, hspace, cu
 %
 % How it works
 % ------------
-% 1) Identify coarse/fine levels: ℓ_c = LEVEL(LEVEL_IND-1), ℓ_f = LEVEL(LEVEL_IND).
-% 2) Per direction d = 1..3, start from the polynomial two-scale matrix Proj_d = HSPACE.Proj{ℓ_c}{d}
+% 1) Identify coarse/fine levels: l_c = LEVEL(LEVEL_IND-1), l_f = LEVEL(LEVEL_IND).
+% 2) Per direction d = 1..3, start from the polynomial two-scale matrix Proj_d = HSPACE.Proj{l_c}{d}
 %    and reweight it to NURBS:
-%         Proj_d ← ( Proj_d .* TWEIGHTS{ℓ_c}{d} ) ./ ( TWEIGHTS{ℓ_f}{d} )'
+%         Proj_d <- ( Proj_d .* TWEIGHTS{l_c}{d} ) ./ ( TWEIGHTS{l_f}{d} )'
 %    Then crop to the local tensor boxes:
-%         Proj_d ← Proj_d( indices_f{d}, indices_c{d} ),
+%         Proj_d <- Proj_d( indices_f{d}, indices_c{d} ),
 %    where indices_f{d} = CUBOID_SPLINES_LEVEL{LEVEL_IND}.indices{d},
 %          indices_c{d} = CUBOID_SPLINES_LEVEL{LEVEL_IND-1}.indices{d}.
 % 3) Detect truncation rows on the fine level inside the local box via
-%    CUBOID_DETECTION on union(HSPACE.active{ℓ_f}, HSPACE.deactivated{ℓ_f}) bounded
+%    CUBOID_DETECTION on union(HSPACE.active{l_f}, HSPACE.deactivated{l_f}) bounded
 %    to indices_f; denote the resulting **active** and **not-active** cuboids.
 % 4) Assemble the truncated operator with few Kronecker/TT terms:
 %       • If (#active cuboids) ≤ (#not-active cuboids + 1):
@@ -70,8 +70,8 @@ function C = basis_change_nurbs_truncated(Tweights, level, level_ind, hspace, cu
 % ---------------------------
 % If LEVEL(LEVEL_IND) − LEVEL(LEVEL_IND-1) > 1, truncated maps are built across
 % intermediate levels and multiplied (in TT) to obtain the overall map:
-% for j = ℓ_c+1 : ℓ_f, construct a (possibly truncated) two-scale C_tmp_tt between j−1 and j,
-% then update C ← round( C_tmp_tt * C, LOW_RANK_DATA.rankTol ).
+% for j = l_c+1 : l_f, construct a (possibly truncated) two-scale C_tmp_tt between j−1 and j,
+% then update C <- round( C_tmp_tt * C, LOW_RANK_DATA.rankTol ).
 %
 % Notes
 % -----

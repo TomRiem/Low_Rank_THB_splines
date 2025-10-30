@@ -32,7 +32,7 @@ function [TT_rhs] = assemble_rhs_level_bsplines_2(H, rhs, level, level_ind, ....
 %                       (defines local DOF box); fields include:
 %                         .tensor_size = [n1 n2 n3]
 % hspace                Hierarchical space object (knots, ndofs per level, ...).
-% hmsh                  Hierarchical mesh object (cells → knot spans, per level).
+% hmsh                  Hierarchical mesh object (cells -> knot spans, per level).
 % low_rank_data         Options:
 %                         .rankTol_f – TT rounding tolerance for RHS accumulation.
 %

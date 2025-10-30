@@ -33,15 +33,15 @@ function [cuboid] = cuboid_detection(active, ndof_dir, compute_active_cuboids, c
 %   ONLY_INTERIOR             logical – ignore boundary points (i.e., i=1 or i=nx, etc.).
 %   COMPUTE_INDICES           logical – request the kept index sets per direction.
 %   SHRINKING                 logical – drop unused slices and renumber to a tight box.
-%   INVERSE_SHIFTED_INDICES   logical – also return shrunk→original maps.
+%   INVERSE_SHIFTED_INDICES   logical – also return shrunk->original maps.
 %   BC_INDICES                optional cell {bc_x, bc_y, bc_z}; activates “Truncated mode”.
 %
 %   Output (struct CUBOID)
 %   ----------------------
 %   .tensor_size              [nx' ny' nz'] after shrinking/truncation.
-%   .shifted_indices{d}       map original index → shrunk index (0 for excluded).
+%   .shifted_indices{d}       map original index -> shrunk index (0 for excluded).
 %   .indices{d}               kept indices per axis (if COMPUTE_INDICES==true).
-%   .inverse_shifted_indices{d}  shrunk index → original index (if requested).
+%   .inverse_shifted_indices{d}  shrunk index -> original index (if requested).
 %   .active_cuboids           cell of [x y z w h d] (start + extents) for ACTIVE cover.
 %   .n_active_cuboids         number of active cuboids.
 %   .not_active_cuboids       cell of [x y z w h d] for complement (if requested).

@@ -1,6 +1,6 @@
 function C = basis_change_nurbs(Tweights, level, level_ind, hspace, cuboid_splines_level, low_rank_data)
 % BASIS_CHANGE_NURBS
-% Two-scale (coarse→fine) operator without truncation for NURBS solution spaces (TT form).
+% Two-scale (coarse->fine) operator without truncation for NURBS solution spaces (TT form).
 %
 %   C = BASIS_CHANGE_NURBS(TWEIGHTS, LEVEL, LEVEL_IND, HSPACE, CUBOID_SPLINES_LEVEL, LOW_RANK_DATA)
 %
@@ -10,23 +10,23 @@ function C = basis_change_nurbs(Tweights, level, level_ind, hspace, cuboid_splin
 % to a finer kept level for a tensor-product **NURBS** space. Starting from the
 % polynomial B-spline two-scale matrices HSPACE.Proj{·}{d}, the routine inserts the
 % per-direction rational weight corrections so that the resulting map is the NURBS
-% coarse→fine relation. The operator is assembled as a Kronecker/TT product of the
+% coarse->fine relation. The operator is assembled as a Kronecker/TT product of the
 % three univariate (row/column-cropped) matrices, with TT rounding when composing
 % multiple level jumps.
 %
 % Inputs
 % ------
 % TWEIGHTS             Cell array of per-level NURBS weights (one entry per kept level):
-%                        TWEIGHTS{ℓ}{d} is the vector of univariate NURBS weights in
-%                        direction d at level ℓ.  Dimensions must match the number of
-%                        basis functions in HSPACE.space_of_level(ℓ).ndof_dir(d).
+%                        TWEIGHTS{l}{d} is the vector of univariate NURBS weights in
+%                        direction d at level l.  Dimensions must match the number of
+%                        basis functions in HSPACE.space_of_level(l).ndof_dir(d).
 %
 % LEVEL                Vector of kept levels (subset of 1:HSPACE.nlevels).
 % LEVEL_IND            Position (≥2) in LEVEL specifying the current fine kept level.
 %
 % HSPACE               Hierarchical space with fields:
-%   .space_of_level(ℓ).ndof_dir      [1×3] univariate DOFs per direction
-%   .Proj{ℓ}{d}                       B-spline coarse→fine two-scale matrix (dir d)
+%   .space_of_level(l).ndof_dir      [1×3] univariate DOFs per direction
+%   .Proj{l}{d}                       B-spline coarse->fine two-scale matrix (dir d)
 %
 % CUBOID_SPLINES_LEVEL Cell (per kept level) from CUBOID_DETECTION on the **solution DOF** grid.
 %                      For each kept level k:
@@ -43,26 +43,26 @@ function C = basis_change_nurbs(Tweights, level, level_ind, hspace, cuboid_splin
 %
 % How it works
 % ------------
-% Let ℓ_c = LEVEL(LEVEL_IND-1) (coarse) and ℓ_f = LEVEL(LEVEL_IND) (fine).
+% Let l_c = LEVEL(LEVEL_IND-1) (coarse) and l_f = LEVEL(LEVEL_IND) (fine).
 %
 % • **Weight correction (per direction d):**
-%     Given the B-spline projector P_d = HSPACE.Proj{ℓ}{d} (size n_f^d × n_c^d),
+%     Given the B-spline projector P_d = HSPACE.Proj{l}{d} (size n_f^d × n_c^d),
 %     the NURBS projector is obtained entrywise as
-%         P̂_d = ( P_d .* TWEIGHTS{ℓ}{d} ) ./ (TWEIGHTS{ℓ+1}{d})'
+%         P̂_d = ( P_d .* TWEIGHTS{l}{d} ) ./ (TWEIGHTS{l+1}{d})'
 %     i.e., multiply each **column** by coarse weights and divide each **row**
 %     by fine weights. (MATLAB implicit expansion is used.)
 %
-% • **Consecutive kept levels (ℓ_f = ℓ_c + 1):**
+% • **Consecutive kept levels (l_f = l_c + 1):**
 %       For d = 1..3:
-%         P̂_d ← weight-corrected projector between ℓ_c → ℓ_f
-%         P̂_d ← P̂_d( CUBOID_SPLINES_LEVEL{LEVEL_IND}.indices{d}, ...
+%         P̂_d <- weight-corrected projector between l_c -> l_f
+%         P̂_d <- P̂_d( CUBOID_SPLINES_LEVEL{LEVEL_IND}.indices{d}, ...
 %                     CUBOID_SPLINES_LEVEL{LEVEL_IND-1}.indices{d} )
 %       C = tt_matrix({P̂_1; P̂_2; P̂_3}).
 %
-% • **Skipped levels (ℓ_f > ℓ_c + 1):**
-%       Start with the first step ℓ_c → ℓ_c+1 using indices of that level (if present in LEVEL,
-%       otherwise full ranges), then for each intermediate j = ℓ_c+2 : ℓ_f:
-%         build the weight-corrected step P̂_d (j-1 → j), crop to the proper
+% • **Skipped levels (l_f > l_c + 1):**
+%       Start with the first step l_c -> l_c+1 using indices of that level (if present in LEVEL,
+%       otherwise full ranges), then for each intermediate j = l_c+2 : l_f:
+%         build the weight-corrected step P̂_d (j-1 -> j), crop to the proper
 %         (rows,cols) index boxes of those levels, set C_step = tt_matrix({P̂_1;P̂_2;P̂_3}),
 %         and update
 %             C = round( C_step * C, LOW_RANK_DATA.rankTol ).
@@ -70,8 +70,8 @@ function C = basis_change_nurbs(Tweights, level, level_ind, hspace, cuboid_splin
 % Notes
 % -----
 % • No THB truncation here—this is the **pure** NURBS two-scale relation.
-% • Ensure the orientation of TWEIGHTS{ℓ}{d}: in this code TWEIGHTS{ℓ}{d} is used as a
-%   row vector for column-wise scaling and (TWEIGHTS{ℓ}{d})' as a column vector for
+% • Ensure the orientation of TWEIGHTS{l}{d}: in this code TWEIGHTS{l}{d} is used as a
+%   row vector for column-wise scaling and (TWEIGHTS{l}{d})' as a column vector for
 %   row-wise scaling (MATLAB implicit expansion).
 % • CUBOID_SPLINES_LEVEL{·}.indices{d} restricts the map to the local DOF boxes used in
 %   level-wise assembly, keeping the univariate factors small and structured.

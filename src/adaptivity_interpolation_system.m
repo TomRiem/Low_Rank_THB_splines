@@ -1,22 +1,19 @@
-
 function [H, time] = adaptivity_interpolation_system(geometry, low_rank_data)
-% ADAPTIVITY_INTERPOLATION_LOW_RANK
-% Build low-rank (TT) interpolants for geometry-induced weights and the RHS
-% used by the THB-IGA low-rank assembly pipeline. Geometry may be B-splines
-% or NURBS; the *solution space downstream is B-splines*.
+% ADAPTIVITY_INTERPOLATION_SYSTEM
+% Build low-rank (TT) interpolants for geometry-induced weights by the 
+% THB-IGA low-rank assembly pipeline. Geometry may be B-splines
+% or NURBS.
 %
 % [H, rhs, time] = ...
-% ADAPTIVITY_INTERPOLATION_LOW_RANK(geometry, low_rank_data, problem_data)
+% ADAPTIVITY_INTERPOLATION_SYSTEM(geometry, low_rank_data, problem_data)
 %
 % Purpose
 % -------
 % Construct separated (tensor-train) representations needed for fast
 % univariate quadrature on hierarchical levels:
 % • H  – geometry-related weights (and auxiliary factors) in TT form,
-% • rhs – source/load term in TT form.
 % The routine also harmonizes degrees/regularities/subdivisions with the
-% given geometry by degree elevation and knot refinement, and reports the
-% elapsed setup time.
+% given geometry by degree elevation and knot refinement.
 %
 % Inputs
 % ------
@@ -29,9 +26,6 @@ function [H, time] = adaptivity_interpolation_system(geometry, low_rank_data)
 % • system_degree      – degree per direction for geometry weights
 % • system_regularity  – continuity per direction for geometry weights
 % • system_nsub        – additional dyadic subdivisions per direction
-% • rhs_degree         – degree per direction for the RHS space
-% • rhs_regularity     – continuity per direction for the RHS space
-% • rhs_nsub           – additional dyadic subdivisions per direction
 % • geometry_format    – 'B-Splines' to force the polynomial branch;
 %                         otherwise NURBS is assumed
 % • (any further fields are passed through to the LR helpers, e.g.,
@@ -41,9 +35,6 @@ function [H, time] = adaptivity_interpolation_system(geometry, low_rank_data)
 %   geometry.nurbs.order:  degree = order-1, regularity = degree-1.
 % • *_nsub defaults to [0 0 0] if omitted.
 %
-% problem_data : struct
-% • f – function handle for the volumetric source term on the *physical*
-%       domain (it is interpolated into rhs).
 %
 % Outputs
 % -------
@@ -51,14 +42,12 @@ function [H, time] = adaptivity_interpolation_system(geometry, low_rank_data)
 %       the univariate quadrature assembly (exact field layout matches the
 %       downstream LR assembly routines, e.g. weightFun info and per-dir
 %       SVD/TT factors for stiffness/mass entries).
-% rhs : struct with low-rank (TT) representation of the load term compatible
-%       with H and the subsequent level-wise assembly.
 % time: scalar, wall-clock seconds for the whole interpolation/rounding step.
 %
 % How it works
 % ------------
 % 1) Normalize interpolation choices
-%    • Fill missing system_* / rhs_* fields from geometry.nurbs.order and
+%    • Fill missing system_* fields from geometry.nurbs.order and
 %      set *_nsub to [0 0 0] if absent.
 % 2) Align the geometry to the requested spaces
 %    • Degree elevation (NRBDEGELEV) and knot refinement (KNTREFINE + NRBKNTINS),
@@ -71,18 +60,13 @@ function [H, time] = adaptivity_interpolation_system(geometry, low_rank_data)
 % 4) Interpolate geometry weights in low rank
 %    • Call INTERPOLATE_WEIGHTS_BSPLINES or INTERPOLATE_WEIGHTS_NURBS to
 %      obtain separable per-direction factors, then compress with LOWRANK_W.
-% 5) Interpolate the RHS in low rank
-%    • Call INTERPOLATE_F_BSPLINES or INTERPOLATE_F_NURBS to build rhs, then
-%      compress with LOWRANK_F.
-% 6) Return H, rhs, and the elapsed time.
+% 5) Return H, rhs, and the elapsed time.
 %
 % Notes
 % -----
-% • Geometry type (B-splines vs NURBS) is fully supported here; downstream
-%   assembly uses *B-spline trial/test functions* on the hierarchical space.
 % • Immediate TT rounding keeps intermediary ranks controlled prior to
 %   assembly, which is crucial for performance.
-% • The routine only prepares LR ingredients; the adaptive loop, error
+% • The routine only prepares low-rank ingredients; the adaptive loop, error
 %   estimator, marking and refinement remain those of GeoPDEs.
 
     time = tic;

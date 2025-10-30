@@ -18,8 +18,8 @@ function [TT_M] = assemble_mass_level_nurbs_1(H, Tweights, level, level_ind, cub
 % H                     Low-rank geometry/weight data used by univariate
 %                       quadrature (contains fields for mass factors).
 % Tweights              Cell array with per-level, per-direction univariate
-%                       NURBS weights in TT form; Tweights{ℓ}{d} is the 1D
-%                       weight vector along direction d on level ℓ.
+%                       NURBS weights in TT form; Tweights{l}{d} is the 1D
+%                       weight vector along direction d on level l.
 % level                 Vector of kept hierarchy levels (e.g., pruned of empty).
 % level_ind             Position into 'level' indicating the current level.
 % cuboid_cells          Per-level cuboid decomposition of active cells

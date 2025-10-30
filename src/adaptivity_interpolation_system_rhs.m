@@ -1,12 +1,12 @@
 
 function [H, rhs, time] = adaptivity_interpolation_system_rhs(geometry, low_rank_data, problem_data)
-% ADAPTIVITY_INTERPOLATION_LOW_RANK
+% ADAPTIVITY_INTERPOLATION_SYSTEM_RHS
 % Build low-rank (TT) interpolants for geometry-induced weights and the RHS
 % used by the THB-IGA low-rank assembly pipeline. Geometry may be B-splines
-% or NURBS; the *solution space downstream is B-splines*.
+% or NURBS.
 %
 % [H, rhs, time] = ...
-% ADAPTIVITY_INTERPOLATION_LOW_RANK(geometry, low_rank_data, problem_data)
+% ADAPTIVITY_INTERPOLATION_SYSTEM_RHS(geometry, low_rank_data, problem_data)
 %
 % Purpose
 % -------
@@ -78,11 +78,9 @@ function [H, rhs, time] = adaptivity_interpolation_system_rhs(geometry, low_rank
 %
 % Notes
 % -----
-% • Geometry type (B-splines vs NURBS) is fully supported here; downstream
-%   assembly uses *B-spline trial/test functions* on the hierarchical space.
 % • Immediate TT rounding keeps intermediary ranks controlled prior to
 %   assembly, which is crucial for performance.
-% • The routine only prepares LR ingredients; the adaptive loop, error
+% • The routine only prepares low-rank ingredients; the adaptive loop, error
 %   estimator, marking and refinement remain those of GeoPDEs.
 
     time = tic;

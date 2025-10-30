@@ -65,7 +65,7 @@ function [TT_rhs, rhs_full, low_rank_data, time] = assemble_rhs_low_rank(H, rhs,
 %
 % 4) Cross-level accumulation (two-scale relation)
 %    • For i from fine to coarse:
-%        - Build the coarse→fine basis-change C for the pair of levels:
+%        - Build the coarse->fine basis-change C for the pair of levels:
 %            B-splines: BASIS_CHANGE_BSPLINES[_TRUNCATED]
 %            NURBS    : BASIS_CHANGE_NURBS[_TRUNCATED] (uses Tweights)
 %        - Propagate contributions to coarser levels:
@@ -73,8 +73,8 @@ function [TT_rhs, rhs_full, low_rank_data, time] = assemble_rhs_low_rank(H, rhs,
 %          for each j = i-1, i-2, ...
 %
 % 5) Global packing (block layout)
-%    • block_format == 1: ASSEMBLE_RHS_FORMAT_1  → per-cuboid TT blocks.
-%    • block_format == 0: ASSEMBLE_RHS_FORMAT_2  → per-level TT blocks.
+%    • block_format == 1: ASSEMBLE_RHS_FORMAT_1  -> per-cuboid TT blocks.
+%    • block_format == 0: ASSEMBLE_RHS_FORMAT_2  -> per-level TT blocks.
 %
 % 6) Optional dense reconstruction (rhs_full)
 %    • If full_rhs == 1:
@@ -88,7 +88,7 @@ function [TT_rhs, rhs_full, low_rank_data, time] = assemble_rhs_low_rank(H, rhs,
 % • THB vs. standard hierarchical spaces are handled automatically through the
 %   chosen basis-change routine (truncated vs. non-truncated).
 % • For NURBS levels, univariate weight tensors (Tweights) are formed once from
-%   hspace.space_of_level(ℓ).weights and reused in per-level RHS assembly.
+%   hspace.space_of_level(l).weights and reused in per-level RHS assembly.
 % • TT rounding uses low_rank_data.rankTol_f; it is applied after accumulation
 %   steps to keep TT ranks under control.
 % • This routine assembles the **RHS only**. Stiffness/mass assembly and solves

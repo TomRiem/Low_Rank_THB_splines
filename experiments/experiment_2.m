@@ -56,7 +56,7 @@ Dependencies (toolboxes/codes)
 
 Notes / Caveats
 ---------------
-• Minor typo fixed: `2..^(i_ref)` → `2^(i_ref)` (see inline FIX comment).
+• Minor typo fixed: `2..^(i_ref)` -> `2^(i_ref)` (see inline FIX comment).
 • The script uses `save` after each solve so partial results persist if a run stops.
 • `low_rank_data.discardFull = 1` avoids assembling full K/F during TT runs.
 • `RecursiveSize` is assumed to return an approximate memory footprint in bytes.
@@ -161,7 +161,7 @@ results_GeoPDEs.err        = cell(degrees_n, 1);
 results_GeoPDEs.ndof       = cell(degrees_n, 1);
 
 %% ------------------------------
-%  EXPERIMENT LOOPS (degree → levels → TT tolerances)
+%  EXPERIMENT LOOPS (degree -> levels -> TT tolerances)
 %  ------------------------------
 for i_deg = 1:degrees_n
 

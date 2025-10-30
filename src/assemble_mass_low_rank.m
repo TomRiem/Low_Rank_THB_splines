@@ -1,108 +1,94 @@
 function [TT_M, M_full, low_rank_data, time] = assemble_mass_low_rank(H, hmsh, hspace, low_rank_data)
 % ASSEMBLE_MASS_LOW_RANK
-% Low-rank (TT) assembly of the hierarchical mass matrix for THB/HB spaces.
-% Per level: integrate over active-cell “cuboids” via univariate quadrature,
-% then lift/accumulate across levels with the (possibly truncated) two-scale
-% relation, and finally build a TT-block matrix in one of two block formats.
+% Low-rank (TT) assembly of the hierarchical mass matrix for (T)HB-splines.
+% Geometry may be B-splines or NURBS; the trial/test space is hierarchical
+% B-splines (truncated if requested). Produces a TT-structured block matrix
+% in either per-cuboid (format 1) or per-level (format 0) layout.
 %
 % [TT_M, M_full, low_rank_data, time] = ...
 % ASSEMBLE_MASS_LOW_RANK(H, hmsh, hspace, low_rank_data)
 %
 % Purpose
 % -------
-% Assemble the global hierarchical mass operator in low rank. The routine
-% (i) detects Cartesian “cuboids” of active cells per level, 
-% (ii) assembles per-level mass contributions by sums of Kronecker products
-%     using the separated weights encoded in H (univariate quadrature),
-% (iii) realizes the two-scale relation (with/without truncation) to move
-%     contributions between levels, and
-% (iv) packs the result into a TT block matrix suitable for TT solvers.
+% Assemble the global hierarchical mass operator in tensor-train (TT) form.
+% The routine:
+% • detects “cuboids” of active cells per kept level,
+% • assembles per-level mass contributions via 1D quadrature and Kronecker sums
+%   using the separated weights/metrics encoded in H,
+% • realizes the two-scale relation (with/without truncation)
+%   to propagate and couple contributions across levels, and
+% • packs the result into a TT block matrix suitable for TT solvers.
 %
 % Inputs
 % ------
-% H : low-rank (TT) ingredients for weights/metrics used by univariate
-%     quadrature; produced by ADAPTIVITY_INTERPOLATION_LOW_RANK (system part).
-% hmsh : hierarchical mesh object (GeoPDEs); provides per-level active cells.
-% hspace : hierarchical space (HB/THB, B-splines or NURBS geometry weights).
-% low_rank_data : struct of options/tolerances
-%   • rankTol     – TT rounding tolerance for operators
-%   • block_format (0/1) – global block layout
-%       1: each active cuboid is its own block; 2: each level is a block
-%   • full_system (0/1) – if 1, materialize the full sparse/dense matrix
-%                         M_full alongside TT_M (costly!)
-%   • any further fields consumed by called helpers (e.g., TT rounding).
+% H               Low-rank (TT) ingredients for weights/metric used by
+%                 univariate quadrature (from ADAPTIVITY_INTERPOLATION_LOW_RANK).
+% hmsh            Hierarchical mesh object (levels, active cells).
+% hspace          Hierarchical space object (HB/THB-splines trial/test):
+%                 • .nlevels, .truncated, .space_of_level, .active{l}
+% low_rank_data   Struct with TT/assembly options (subset shown):
+%                 • rankTol         TT rounding tolerance for operators
+%                 • block_format    1 -> per cuboid, 0 -> per level
+%                 • full_system     1 -> also assemble M_full on active DoFs
+%                 (additional fields may be used by called helpers)
 %
 % Outputs
 % -------
-% TT_M   : TT-structured block matrix of the hierarchical mass operator
-%          (block layout depends on low_rank_data.block_format).
-% M_full : (optional) assembled full matrix in physical active-DoF ordering
-%          if low_rank_data.full_system==1, else [].
-% low_rank_data : (possibly) updated options (e.g., sizes/ranks cached).
-% time   : wall-clock time (seconds) for the whole assembly.
+% TT_M            TT-structured block mass matrix:
+%                 • block_format==1 -> (#cuboids × #cuboids) cell of TT-matrices
+%                 • block_format==0 -> (nlevels × nlevels) cell of TT-matrices
+% M_full          Full matrix on hierarchical active DoFs if
+%                 low_rank_data.full_system==1; otherwise [].
+% low_rank_data   (Possibly) updated options (e.g., cached sizes/ranks).
+% time            Wall-clock time (seconds) for the whole assembly.
 %
-% How it works (high level)
-% -------------------------
-% 1) Level filtering:
-%    Build the list ‘level’ of mesh levels that actually carry active splines
-%    and/or active cells. This avoids empty work on dormant levels.
+% How it works
+% ------------
+% 1) Level pruning:
+%    Build the list of “kept” levels by removing dormant ones
+%    (no active DoFs and no elements).
 %
-% 2) Per-level cuboids and per-level mass:
-%    For each included level ℓ:
-%      • Detect “cuboid” partitions of active cells (and of non-active cells),
-%        i.e. disjoint unions with a Cartesian-product index set. This reduces
-%        many small cell integrals to a few larger Kronecker factors, enabling
-%        univariate quadrature and TT accumulation. 
-%      • Assemble the level mass TT tensor M_ℓ via one of two strategies:
-%          (a) sum over active-cell cuboids, or
-%          (b) integrate once over the full reduced mesh and subtract the
-%              non-active cuboids.
-%        The choice (a) vs (b) is made by comparing the cuboid counts.
-%      • Use assemble_mass_level_bsplines_1/2 or _nurbs_1/2 accordingly.
-%        (The *_1 vs *_2 variants mirror (a) vs (b).)
+% 2) Per-level cuboids & per-level mass:
+%    For each kept level l:
+%    • Detect tensor-product “cuboids” of active cells (and of non-active cells)
+%      to reduce many tiny integrals to a few Kronecker factors.
+%    • Assemble the level-local TT mass M_l via one of two strategies:
+%        - *_1: integrate only over active cuboids,
+%        - *_2: integrate once over (reduced) all cells and subtract the
+%               non-active cuboids.
+%      The choice is made heuristically from active vs. inactive cuboid counts.
+%      Use ASSEMBLE_MASS_LEVEL_BSPLINES_1/2 or _NURBS_1/2 accordingly.
 %
-% 3) Two-scale relation (basis change) and truncation:
-%    To accumulate contributions from fine to coarse (and couple blocks),
-%    build C operators between consecutive levels:
-%      • B-splines: BASIS_CHANGE_BSPLINES[_TRUNCATED]
-%      • NURBS   : BASIS_CHANGE_NURBS[_TRUNCATED] (re-scales by weights)
-%    If THB is requested (hspace.truncated), use the truncated two-scale
-%    relation; otherwise use the classical HB map. This realizes the THB
-%    construction from the paper (two-scale with truncation). 
-%    Accumulate blocks by repeated TT products/roundings:
-%      CT_M_C ← Cᵀ * M_ℓ * C;   M_C ← M_ℓ * C;   and sum into TT_M_all.
+% 3) Cross-level accumulation (two-scale relation):
+%    • Build coarse->fine basis-change operators C between consecutive levels:
+%        - B-splines: BASIS_CHANGE_BSPLINES[_TRUNCATED]
+%        - NURBS   : BASIS_CHANGE_NURBS[_TRUNCATED] (with per-level weights)
+%    • Propagate and couple in TT with rounding (rankTol):
+%        CT_M_C -> C' * M_l * C  added into finer-level diagonals,
+%        M_C    -> M_l * C       used to form off-diagonal blocks,
+%      and cascade these contributions to all coarser levels.
 %
-% 4) Global block assembly (format 1 or 2):
-%    • Format 1 (assemble_system_format_1): finer-grained block layout, one
-%      block per active cuboid; good for very localized refinement.
-%    • Format 2 (assemble_system_format_2): one block per level; compact
-%      representation when per-level coupling dominates.
+% 4) Global packing:
+%    • If block_format==1 -> ASSEMBLE_SYSTEM_FORMAT_1 (per active cuboid).
+%    • Else               -> ASSEMBLE_SYSTEM_FORMAT_2 (per kept level).
 %
-% 5) Optional materialization of M_full:
-%    If full_system==1, construct selection/prolongation TT matrices J that
-%    map cuboid/level-local numbering to the physical active-DoF ordering and
-%    assemble the dense/sparse global matrix by M_full(i,j)=… from TT blocks.
-%    This is for diagnostics/solvers outside the TT stack.
+% 5) Optional matricization (M_full):
+%    If full_system==1, build selection/prolongation TT matrices J that map
+%    block-local numbering to hierarchical active DoFs and assemble the global
+%    matrix by M_full = Σ J * TT_M(block) * J'. Returned as a sparse matrix.
 %
-% B-splines vs. NURBS handling
-% ----------------------------
-% • B-splines geometry: per-level assembly uses assemble_mass_level_bsplines_*,
-%   and C is purely polynomial (no weight rescaling).
-% • NURBS geometry: per-level weights are additionally represented per level via
-%   Tweights (TT of level-wise weights) and passed to assemble_mass_level_nurbs_*.
-%   C is rescaled by Tweights in BASIS_CHANGE_NURBS[_TRUNCATED].
-%
-% THB (truncation) vs. HB
-% -----------------------
-% Set by hspace.truncated. If true, C implements truncated two-scale (zeroing
-% coefficients that land in active/deactivated children).
-%
-% Rounding & performance
-% ----------------------
-% • Every accumulation/multiplication in TT is rounded with low_rank_data.rankTol
-%   to control intermediate TT ranks and memory.
-% • The cuboid heuristic minimizes the number of Kronecker terms (hence 1D
-%   quadratures) and also reduces transient TT rank growth. 
+% Notes
+% -----
+% • Geometry handling:
+%   - B-splines geometry: use *_BSPLINES_* kernels; C is purely polynomial.
+%   - NURBS geometry: tensorize level weights once (Tweights = tt_tensor(weights))
+%     and pass to *_NURBS_* kernels; basis-change operators account for weights.
+% • THB vs HB:
+%   Controlled by hspace.truncated. If true, truncated basis-change is used to
+%   honor THB truncation during accumulation.
+% • TT rounding:
+%   All TT products/sums are rounded with low_rank_data.rankTol to control
+%   intermediate ranks and memory.
     time = tic;
     level = 1:hspace.nlevels;
     l_d = [];

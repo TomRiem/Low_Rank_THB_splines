@@ -11,7 +11,7 @@ function  [geometry, hmsh, hspace, u, solution_data] = adaptivity_laplace_low_ra
 %
 % Purpose
 % -------
-% Drive an adaptive refinement loop (SOLVE → ESTIMATE → MARK → REFINE) for the
+% Drive an adaptive refinement loop (SOLVE -> ESTIMATE -> MARK -> REFINE) for the
 % Poisson/Laplace problem on hierarchical meshes, while delegating the linear
 % algebra to low-rank components. The routine:
 % • builds separated (TT) ingredients H and rhs from the geometry/data,
@@ -28,8 +28,6 @@ function  [geometry, hmsh, hspace, u, solution_data] = adaptivity_laplace_low_ra
 % • c_diff – diffusion coefficient (see SOLVE_LAPLACE)
 % • grad_c_diff – (optional) gradient of c_diff (defaults to zero)
 % • f – source term handle
-% • g – Neumann datum (if nmnn_sides ≠ ∅)
-% • h – Dirichlet datum
 % • uex, graduex – (optional) exact solution/gradient for error check
 %
 % method_data : struct 
@@ -107,6 +105,8 @@ function  [geometry, hmsh, hspace, u, solution_data] = adaptivity_laplace_low_ra
 % • The routine preserves the standard GeoPDEs output interface and stopping
 % logic; it only swaps the system assembly/solve phase for low-rank calls.
 % • Error estimation, marking, and refinement are those from the GeoPDEs workflow.
+% • Right now only homogeneous Dirichlet conditions possible.
+
 
     if (nargin == 3)
       plot_data = struct ('print_info', true, 'plot_hmesh', false, 'plot_discrete_sol', false);

@@ -36,8 +36,8 @@ function [TT_K, TT_rhs, cuboid_splines_system, precon, low_rank_data] = assemble
 %
 % hspace : struct / object
 % Hierarchical space. Fields used here:
-% .active{ℓ} – active DOF indices on level ℓ (full grid)
-% .space_of_level(ℓ).ndof_dir – [n1,n2,n3] per direction at level ℓ
+% .active{l} – active DOF indices on level l (full grid)
+% .space_of_level(l).ndof_dir – [n1,n2,n3] per direction at level l
 %
 % nlevels : scalar
 % Number of kept levels (length(level)).
@@ -92,7 +92,7 @@ function [TT_K, TT_rhs, cuboid_splines_system, precon, low_rank_data] = assemble
 % Y = S_y, Z = S_z (analogous for y/z)
 % J{i}{s} = tt_matrix({X; Y; Z})
 % The maps leverage .shifted_indices and .inverse_shifted_indices to go
-% from full → shrunk and back to the cuboid ranges.
+% from full -> shrunk and back to the cuboid ranges.
 %
 % 3) Accumulate the within-level block (one monolithic TT per level):
 % TT_K{i,i} += J{i}{s}' * TT_stiffness_all{i,i} * J{i}{s} (for all s)

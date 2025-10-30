@@ -34,7 +34,7 @@ function [rhs] = univariate_f_area_bsplines(rhs, H, hspace, level, level_ind, kn
 %   CUBOID_SPLINES_LEVEL
 %                      From CUBOID_DETECTION on the *solution DOF* grid; for LEVEL_IND:
 %                        .tensor_size(d)                 local #DOFs in direction d
-%                        .shifted_indices{d}(global_i)   → local (shrunk) index
+%                        .shifted_indices{d}(global_i)   -> local (shrunk) index
 %
 %   Output (augments RHS)
 %   ---------------------

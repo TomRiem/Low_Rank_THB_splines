@@ -1,95 +1,116 @@
 function [u_full, u_tt, TT_K, TT_rhs, time, td, K_full] = adaptivity_solve_laplace_low_rank(H, rhs, hmsh, hspace, low_rank_data)
 % ADAPTIVITY_SOLVE_LAPLACE_LOW_RANK
-% Adaptive THB/Hierarchical IgA Laplace solve using tensor-train (TT)
-% assembly and solvers. Geometry may be B-splines or NURBS; the trial/test
-% space is hierarchical (optionally truncated).
+% Assemble and solve the Laplace system using tensor-train (TT)
+% operators on (truncated) hierarchical B-splines spaces. Geometry can be
+% B-splines or NURBS; the trial/test space is (truncated) hierarchical 
+% B-splines.
 %
 % [u_full, u_tt, TT_K, TT_rhs, time, td, K_full] = ...
-%   ADAPTIVITY_SOLVE_LAPLACE_LOW_RANK(H, rhs, hmsh, hspace, low_rank_data)
+% ADAPTIVITY_SOLVE_LAPLACE_LOW_RANK(H, rhs, hmsh, hspace, low_rank_data)
 %
 % Purpose
 % -------
-% Assemble the hierarchical stiffness operator and right-hand side in TT
-% format across refinement levels, propagate contributions via two-scale
-% (basis-change) operators, build the global TT system with an optional
-% block layout, apply a TT solver (with optional preconditioner), and
-% optionally reconstruct dense objects on the hierarchical active DoFs.
+% Build the hierarchical stiffness operator and right-hand side in TT
+% format across refinement levels, accumulate contributions via two-scale
+% operators, assemble the global TT system in a configurable block layout, 
+% solve it with a TT solver (with optional preconditioner), and optionally 
+% reconstruct dense objects on the active hierarchical DoFs.
 %
 % Inputs
 % ------
-% H                Low-rank geometry data for assembly (weights/metric in TT).
+% H                Low-rank geometry factors for assembly (metric/weights in TT).
 % rhs              Low-rank right-hand side (TT) for the source term.
-% hmsh             Hierarchical mesh object (per level cells/connectivity).
+% hmsh             Hierarchical mesh object (levels, cells, connectivity).
 % hspace           Hierarchical space object:
-%                  • .nlevels          number of levels kept by the hierarchy
-%                  • .truncated        true for THB, false for classical HB
+%                  • .nlevels          number of levels currently in the hierarchy
+%                  • .truncated        logical; true for THB-plines, false
+%                  for HB-splines
 %                  • .space_of_level   per-level tensor-product spaces
-%                  • .active{ℓ}        linear indices of active basis functions
-% low_rank_data    Options for TT rounding/assembly/solve:
-%                  • rankTol, rankTol_f      TT rounding tolerances (K / RHS)
-%                  • block_format            1: per-cuboid blocks, 0: per-level blocks
-%                  • preconditioner          integer code (see Notes)
-%                  • full_solution           1 → return dense u_full
-%                  • full_rhs                1 → (internal) dense rhs reconstruction
-%                  • full_system             1 → return dense K_full
+%                  • .active        linear indices of active basis functions
+% low_rank_data    Struct with TT and assembly/solve options (subset shown):
+%                  • rankTol           TT rounding tolerance for operators (K)
+%                  • rankTol_f         TT rounding tolerance for vectors (RHS)
+%                  • block_format      1 for per-cuboid blocks, 0 for per-level blocks
+%                  • preconditioner    integer code (see Notes)
+%                  • full_solution     1 for return dense u_full (see Outputs)
+%                  • full_rhs          1 for internally reconstruct dense RHS on active DoFs
+%                  • full_system       1 for return dense K_full (see Outputs)
 %
 % Outputs
 % -------
-% u_full           Dense solution on hierarchical active DoFs (if requested),
-%                  otherwise [].
-% u_tt             TT solution. Shape matches block_format:
-%                  • block_format==1 → cell over active cuboids
-%                  • block_format==0 → cell over kept levels
-% TT_K             TT stiffness in block layout (cell of TT-matrices).
-% TT_rhs           TT right-hand side in matching block layout.
-% time             Elapsed wall-clock time for the routine.
-% td               Solver diagnostics (iterations, residuals, timings, …).
-% K_full           Dense stiffness over hierarchical active DoFs (if requested),
-%                  otherwise [].
+% u_full           Dense solution vector on hierarchical active DoFs if
+%                  low_rank_data.full_solution==1; otherwise [].
+% u_tt             TT solution in a layout that matches block_format:
+%                  • block_format==1 for one cell array per active spline cuboids
+%                  • block_format==0 for one cell array per refinement level
+% TT_K             TT stiffness in matching block layout:
+%                  • format 1: (#cuboids × #cuboids) cell TT-matrix blocks
+%                  • format 0: (nlevels × nlevels) cell TT-matrix blocks
+% TT_rhs           TT right-hand side in the same block layout as u_tt.
+% time             Wall-clock time (seconds) for the whole routine.
+% td               tt_gmres_block diagnostics (iterations, residual history, timings, …).
+% K_full           Dense stiffness matrix on hierarchical active DoFs if
+%                  low_rank_data.full_system==1; otherwise [].
 %
 % How it works
 % ------------
-% 1) Prune empty levels and collect the kept level indices.
-% 2) Per kept level:
-%    • Detect tensor-product “cuboids” of active cells/DoFs.
-%    • Assemble level-local TT stiffness and TT RHS with univariate quadrature:
-%        - B-splines:  ASSEMBLE_STIFFNESS_RHS_LEVEL_BSPLINES_1 / _2
-%        - NURBS:      ASSEMBLE_STIFFNESS_RHS_LEVEL_NURBS_1   / _2
-%      (_1 vs _2 chooses integrate-active vs integrate-all-then-subtract,
-%      depending on the ratio of active to inactive cuboids.)
-%    • (If requested) store per-level diagonal blocks for preconditioning.
-% 3) Cross-level accumulation:
-%    • Build two-scale operators C (coarse→fine):
-%        - B-splines: BASIS_CHANGE_BSPLINES[_TRUNCATED]
-%        - NURBS:     BASIS_CHANGE_NURBS[_TRUNCATED]
-%    • Propagate and sum contributions downward:
-%        K_ii → C_j' * K_ii * C_j  (added into K_jj),
-%        b_i  → C_j' * b_i         (added into b_j),
-%      and form off-diagonal K_ij terms. TT objects are rounded by rankTol.
-% 4) Pack the global system and build a preconditioner:
-%    • FORMAT_1: per-cuboid block layout
-%    • FORMAT_2: per-level block layout
-% 5) Solve the TT system with SOLVE_LINEAR_SYSTEM to obtain u_tt.
-% 6) Optional dense reconstructions:
-%    • u_full (and internally, rhs_full) via block selection/prolongation.
-%    • K_full by accumulating J * TT_K * J' over blocks (symmetric fill).
+% 1) Level pruning:
+%    Remove empty levels (no active DoFs and no elements) and collect kept indices.
+%
+% 2) Per kept level l:
+%    • Detect tensor-product “cuboids” covering active cells/DoFs.
+%    • Assemble level-local TT stiffness and TT RHS using univariate quadrature:
+%         - B-splines:  ASSEMBLE_STIFFNESS_RHS_LEVEL_BSPLINES_1 / _2
+%         - NURBS:      ASSEMBLE_STIFFNESS_RHS_LEVEL_NURBS_1   / _2
+%      (_1 integrates only on active cuboids; _2 integrates all then subtracts
+%       inactive parts—chosen heuristically by the active/inactive ratio.)
+%    • Optionally store diagonal blocks for preconditioning.
+%
+% 3) Cross-level accumulation (multilevel coupling):
+%    • Build two-scale (coarseforfine) basis-change operators C:
+%         - B-splines: BASIS_CHANGE_BSPLINES[_TRUNCATED]
+%         - NURBS: BASIS_CHANGE_NURBS[_TRUNCATED]
+%    • Propagate contributions downward and round in TT:
+%         K_ii -> C' * K_ii * C  added to finer-level diagonals,
+%         b_i  -> C' * b_i       added to finer-level RHS,
+%         K_ij off-diagonals formed accordingly.
+%      All TT objects are rounded with rankTol / rankTol_f.
+%
+% 4) Global packing and preconditioner:
+%    • If block_format==1 -> assemble per-cuboid block system
+%      (ASSEMBLE_SYSTEM_RHS_PRECON_FORMAT_1).
+%    • Else -> assemble per-level block system
+%      (ASSEMBLE_SYSTEM_RHS_PRECON_FORMAT_2).
+%    • Build the requested preconditioner (see Notes).
+%
+% 5) Solve:
+%    • u_tt = SOLVE_LINEAR_SYSTEM(TT_K, TT_rhs, precon, low_rank_data).
+%
+% 6) Optional dense reconstructions on hierarchical active DoFs:
+%    • u_full via block selection/prolongation if full_solution==1.
+%    • (internally) rhs_full if full_rhs==1 (helper for diagnostics/workflows).
+%    • K_full by accumulating J * TT_K * J' over blocks (symmetric fill) if
+%      full_system==1.
 %
 % Notes
 % -----
-% • THB vs standard HB is controlled by hspace.truncated. The corresponding
-%   basis-change routine is used so truncation is respected in accumulation.
 % • Geometry handling:
-%   - If .space_type is 'spline', pure B-splines are used.
-%   - If NURBS, per-level weights are tensorized once and reused in assembly.
+%   - If hspace.space_of_level(1).space_type == 'spline', pure B-splines are used.
+%   - For NURBS, per-level weights are tensorized once (TT) and reused in assembly.
+% • THB vs HB is controlled by hspace.truncated; the corresponding basis-change
+%   routine is used so truncation is respected during accumulation.
 % • Block formats:
-%   - block_format==1 → many small TT blocks (per active cuboid), good locality.
-%   - block_format==0 → fewer, larger TT blocks (per level).
+%   - block_format==1 -> many small TT blocks (one per actice spline cuboid), improving locality.
+%   - block_format==0 -> fewer, larger TT blocks (one per level).
 % • Preconditioner codes (low_rank_data.preconditioner):
-%   1: diagonal blocks of the fully accumulated K (default block layout),
-%   2: Jacobi (diagonals of K),
-%   3: per-level diagonal blocks only (no cross-level accumulation),
-%   4: (format 1) diagonals of the diagonal cuboid blocks,
-%   5: diagonals of option 3.
+%   1: Diagonal blocks of the fully accumulated K (default block layout).
+%   2: Jacobi (diagonal entries of K).
+%   3: Per-level diagonal blocks only (no cross-level accumulation).
+%   4: (format 1) diagonals of the diagonal cuboid blocks.
+%   5: Diagonals of option 3.
+% • TT operations rely on tt_tensor / tt_matrix and round(·, rankTol) from the
+%   TT toolbox; tolerances rankTol (operators) and rankTol_f (vectors) control
+%   accuracy and ranks.
     time = tic;
     level = 1:hspace.nlevels;
     l_d = [];

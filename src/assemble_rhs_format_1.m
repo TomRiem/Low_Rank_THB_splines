@@ -26,7 +26,7 @@ function [TT_rhs, cuboid_splines_system, low_rank_data] = assemble_rhs_format_1(
 %     Global indices of the kept hierarchical levels (ascending).
 %
 % hspace : hierarchical spline space
-%     Fields used: .active{ℓ}, .space_of_level(ℓ).ndof_dir
+%     Fields used: .active{l}, .space_of_level(l).ndof_dir
 %
 % nlevels : scalar
 %     Number of kept levels (length(level)).
@@ -35,7 +35,7 @@ function [TT_rhs, cuboid_splines_system, low_rank_data] = assemble_rhs_format_1(
 %     For each kept level i, the *shrunk* level-local index mapping created
 %     earlier at assembly time (via CUBOID_DETECTION). Fields used:
 %       • tensor_size(d)             – 1D mode sizes on the shrunk grid
-%       • shifted_indices{d}(i_full) – full → shrunk index map (0 if dropped)
+%       • shifted_indices{d}(i_full) – full -> shrunk index map (0 if dropped)
 %
 % low_rank_data : struct
 %     Low-rank control parameter:

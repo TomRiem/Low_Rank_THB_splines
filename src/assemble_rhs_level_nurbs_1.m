@@ -36,7 +36,7 @@ function [TT_rhs] = assemble_rhs_level_nurbs_1(H, rhs, Tweights, level, level_in
 %
 % cuboid_cells          Per-level cuboid decomposition of the mesh cells used for
 %                       integration. Required fields at index {level_ind}:
-%                         • indices{1|2|3} : windows that map local → global
+%                         • indices{1|2|3} : windows that map local -> global
 %                           knot-span indices in each direction.
 %                         • active_cuboids : cell array where each entry is a row
 %                           vector [i1 i2 i3 n1 n2 n3] giving the start indices
@@ -105,7 +105,6 @@ function [TT_rhs] = assemble_rhs_level_nurbs_1(H, rhs, Tweights, level, level_in
 %   is inside UNIVARIATE_F_AREA_NURBS, which builds univariate factors for the
 %   *rational* basis R = (N .* w) / sum(N .* w). The argument Tweights supplies
 %   the per-control-point weights used in those 1D quadratures.
-%
 % • “_1” strategy (active-cuboids integration):
 %     Use this routine when the number of active cuboids on the level is not larger
 %     than the number of non-active cuboids plus one. In that case, integrating

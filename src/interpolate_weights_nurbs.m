@@ -62,10 +62,10 @@ function [H, rhs, opt] = interpolate_weights_nurbs(G, opt)
 %      (knots/degree/size) via ENLARGEN_BSPLINE_SPACE_W(..., degree, 3); store in H.weightFun.
 %      This richer space captures metric variation and supports separable interpolation.
 %   2) Greville grid & basis eval:
-%         grevillePoints{i}  ← scaled Greville abscissae of target space,
-%         grevilleValues{i}  ← evalNURBS(...) using G.tensor.Tweights{i}' (rational basis),
-%         grevilleDerivs{i}  ← evalNURBSDeriv(...),
-%         grevilleValues2{i} ← evalBSpline(...) of the target space at the same points.
+%         grevillePoints{i}  <- scaled Greville abscissae of target space,
+%         grevilleValues{i}  <- evalNURBS(...) using G.tensor.Tweights{i}' (rational basis),
+%         grevilleDerivs{i}  <- evalNURBSDeriv(...),
+%         grevilleValues2{i} <- evalBSpline(...) of the target space at the same points.
 %      (NURBS basis R_i = N_i w_i / Σ_j N_j w_j; evalNURBS* handles weights internally.)
 %   3) Jacobian on Greville grid:
 %         2D:  j11,j12,j21,j22 via basis/derivative contractions; w = |j11*j22 - j12*j21|.

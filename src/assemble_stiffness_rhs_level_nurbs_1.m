@@ -39,7 +39,7 @@ function [TT_K, TT_rhs] = assemble_stiffness_rhs_level_nurbs_1(H, rhs, Tweights,
 % CUBOID_SPLINES_LEVEL
 %                    From CUBOID_DETECTION on the *solution DOF* grid; for LEVEL_IND:
 %                      .tensor_size(d)                 local #DOFs in direction d
-%                      .shifted_indices{d}(global_i)   → local (shrunk) index
+%                      .shifted_indices{d}(global_i)   -> local (shrunk) index
 %
 % Output (augments RHS)
 % ---------------------

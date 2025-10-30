@@ -45,11 +45,11 @@ function [H, opt] = lowRank_w(H, opt)
 %
 %     If H.dim == 3
 %       H.stiffness:
-%         .SVDU{ℓ}{d}          for entry ℓ ∈ {1..6} and direction d ∈ {1,2,3}:
+%         .SVDU{l}{d}          for entry l ∈ {1..6} and direction d ∈ {1,2,3}:
 %                                size = [n_d  ,  r_d * r_{d+1}]
 %                                (constructed by stacking TT core slices)
-%         .R(6 x 3)            directional ranks r_d * r_{d+1} for each ℓ
-%         .order               3x3 index map from (i,j) to ℓ:
+%         .R(6 x 3)            directional ranks r_d * r_{d+1} for each l
+%         .order               3x3 index map from (i,j) to l:
 %                                [1 2 3; 2 4 5; 3 5 6]
 %         (Optional) .weightMat removed
 %       H.mass:
@@ -73,7 +73,7 @@ function [H, opt] = lowRank_w(H, opt)
 %       The resulting blocks (SVDU) are exactly the matrices you contract with univariate
 %       basis/quad vectors; the directional “ranks” are R_d = r_d * r_{d+1}.
 %       For stiffness, six entries are handled separately; H.stiffness.order encodes the
-%       (i,j) → ℓ mapping for reconstructing the symmetric 3x3 matrix.
+%       (i,j) -> l mapping for reconstructing the symmetric 3x3 matrix.
 %
 %   Why this format is useful
 %   -------------------------
