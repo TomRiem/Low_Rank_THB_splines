@@ -1,3 +1,90 @@
+% FIGURE_12_THB_GeoPDEs_SOLVE (SCRIPT)
+% Numerical experiment for Figure 12: **classical GeoPDEs (full-matrix) Laplace
+% solve** on the cube using **THB-splines** (truncated hierarchical B-splines).
+% We sweep degrees and refinement levels and record solve time, memory, and
+% H¹/L² errors (absolute and normalized) vs the number of active DoFs.
+%
+% Problem setup
+% -------------
+% Geometry   : cube from 'geo_cube.txt' (B-splines geometry map).
+% PDE        : -Δu = f in Ω,  u = 0 on ∂Ω  (Dirichlet on all faces).
+% Diffusion  : c_diff ≡ 1.
+% Forcing f  : centered, separable forcing with parameter c = 1
+%              (see 'problem_data.f' — product structure per coordinate).
+% Exact u_ex : u_ex(x,y,z) = x(x−1) y(y−1) z(z−1) exp(−c x²).
+% grad u_ex  : given by 'graduex' as a 3×N array-valued handle (GeoPDEs layout).
+%
+% Discretization / hierarchical space
+% -----------------------------------
+% Basis        : **THB-splines** (truncated), method_data.truncated = 1.
+% Degrees      : p ∈ {3, 5}  (isotropic [p p p]).
+% Regularity   : C^{p−1} per direction  →  method_data.regularity = [p−1 p−1 p−1].
+% Base mesh    : nsub_coarse = [2 2 2]*p + [2 2 2]  (moderately refined base).
+% Refinement   : dyadic, method_data.nsub_refine = [2 2 2].
+% Quadrature   : method_data.nquad = [5 5 5].
+% Admissibility: adaptivity_data.adm_class = 2.
+% Levels per p : levels = [7, 5] for p = 3 and p = 5, respectively.
+%
+% Refinement pattern (left slab)
+% ------------------------------
+% For each refinement round i_ref on the current finest level:
+%   • Mark the **left slab** of cells along x (first ~ 1/2, 1/4, … of nel_x
+%     depending on the level), i.e.
+%       i = 1 : floor(nel_x / 2^{i_ref}),   j = 1:nel_y,   k = 1:nel_z.
+%   • Enforce admissibility (MARK_ADMISSIBLE), refine mesh (HMSH_REFINE),
+%     compute deactivations (COMPUTE_FUNCTIONS_TO_DEACTIVATE), and update the
+%     THB space (HSPACE_REFINE).
+%
+% GeoPDEs (full) pipeline
+% -----------------------
+% For each (degree p, level it):
+%   1) Initialize/adapt the hierarchical mesh & THB space:
+%        [hmsh, hspace, geometry] = ADAPTIVITY_INITIALIZE_LAPLACE(problem_data, method_data);
+%        (followed by admissible marking/refinement as above)
+%   2) Assemble and solve with the **standard GeoPDEs** routine:
+%        [u, stiff_mat, rhs, int_dofs, time] = ADAPTIVITY_SOLVE_LAPLACE(hmsh, hspace, problem_data);
+%      where:
+%        • stiff_mat : global sparse stiffness matrix,
+%        • rhs       : global load vector,
+%        • int_dofs  : interior indices (Dirichlet eliminated by projection),
+%        • time      : end-to-end assembly+solve wall time.
+%   3) Post-process errors with exact solution:
+%        [errH1, errL2]           = SP_H1_ERROR(hspace, hmsh, u, u_ex, gradu_ex)
+%        [||u_ex||_H1, ||u_ex||_L2] = SP_H1_ERROR(hspace, hmsh, 0, u_ex, gradu_ex)
+%
+% What is recorded
+% ----------------
+% A struct `results` accumulates metrics (per degree, over all refinement levels):
+%   results.time_solve{i_deg} : total time “time” from ADAPTIVITY_SOLVE_LAPLACE (s)
+%   results.memory_K{i_deg}   : bytes of K(int_dofs,int_dofs) via RecursiveSize
+%   results.memory_rhs{i_deg} : bytes of rhs(int_dofs)
+%   results.memory_u{i_deg}   : bytes of u(int_dofs)
+%   results.errl2{i_deg}      : ||u − u_ex||_{L2(Ω)}
+%   results.errh1{i_deg}      : ||u − u_ex||_{H1(Ω)}
+%   results.errl2_norm{i_deg} : ||u_ex||_{L2(Ω)}  (for relative L² error)
+%   results.errh1_norm{i_deg} : ||u_ex||_{H1(Ω)}  (for relative H¹ error)
+%   results.ndof{i_deg}       : active DoFs (hspace.ndof)
+%
+% Indices
+% -------
+%   i_deg ↔ degree p ∈ {3,5}
+%   Refinement depth is swept by the outer loop: it = 0 … levels(i_deg)−1.
+%
+% Saved output (for Figure 12 plots)
+% ----------------------------------
+% After each (p, level) update, the script appends to and saves:
+%   • 'thb_cube_1_bslice_gp.mat'  containing the `results` struct above.
+%
+% Notes & pitfalls
+% ----------------
+% • This script exercises the **reference GeoPDEs (full-matrix)** path (no TT),
+%   to benchmark against the low-rank TT solver shown elsewhere.
+% • Dirichlet BCs are imposed by L² projection (`sp_drchlt_l2_proj`) inside the
+%   solver; errors are evaluated on the full space using `sp_h1_error`.
+% • Memory measurements use `RecursiveSize` on the **interior** sub-blocks/
+%   subvectors (after boundary elimination).
+% • Ensure the adaptivity toolbox and geometry file 'geo_cube.txt' are on path.
+
 clear;
 
 rng("default");

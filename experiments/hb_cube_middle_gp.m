@@ -1,3 +1,101 @@
+% FIGURE_13_HB_GEOPDES_SOLVE (SCRIPT)
+% Numerical experiment for Figure 13: **GeoPDEs (full-matrix) Laplace solve**
+% on the cube using **HB-splines** (hierarchical B-splines, non-truncated).
+% We sweep over spline degrees, refinement levels, and record solve time,
+% memory usage, and H¹/L² errors vs the number of active DoFs.
+%
+% Problem setup
+% -------------
+% Geometry   : cube from 'geo_cube.txt' (B-spline geometry map).
+% PDE        : -Δu = f in Ω,  u = 0 on ∂Ω  (Dirichlet on all faces).
+% Diffusion  : c_diff ≡ 1.
+% Forcing f  : localized/product form (parameter c = 1), centered near (1/2,1/2,1/2);
+%              see 'problem_data.f' in the script for the exact expression.
+% Exact u_ex : u_ex(x,y,z) = x(x−1) y(y−1) z(z−1)
+%              · exp(−c · (x−1/2)² (y−1/2)² (z−1/2)²).
+% grad u_ex  : provided by 'graduex' as a 3×N array-valued function handle.
+%
+% Discretization / hierarchical space
+% -----------------------------------
+% Basis        : **HB-splines** (non-truncated), method_data.truncated = 0.
+% Degrees      : p ∈ {3, 5} (isotropic [p p p]).
+% Regularity   : C^{p−1} per direction.
+% Base mesh    : nsub_coarse = [4 4 4]*p.
+% Refinement   : dyadic, method_data.nsub_refine = [2 2 2].
+% Quadrature   : method_data.nquad = [5 5 5].
+% Space type   : method_data.space_type = 'standard'.
+% Admissibility: adaptivity_data.adm_class = 2; adaptivity_data.adm_type = 'H-admissible'.
+% Levels per p : levels = [8, 6] for p = 3 and p = 5, respectively.
+%
+% Refinement pattern (centered cube, dyadically shrinking)
+% -------------------------------------------------------
+% For each refinement round i_ref on the current finest level:
+%   • Mark a centered block of cells with indices
+%       i = (nel_x/2 − ⌊nel_x/2^{i_ref}⌋ + 1) : (nel_x/2 + ⌊nel_x/2^{i_ref}⌋)
+%       j = (nel_y/2 − ⌊nel_y/2^{i_ref}⌋ + 1) : (nel_y/2 + ⌊nel_y/2^{i_ref}⌋)
+%       k = (nel_z/2 − ⌊nel_z/2^{i_ref}⌋ + 1) : (nel_z/2 + ⌊nel_z/2^{i_ref}⌋)
+%     i.e., a dyadically shrinking cube around the geometric center.
+%   • Enforce admissibility (MARK_ADMISSIBLE), refine mesh (HMSH_REFINE),
+%     compute deactivations (COMPUTE_FUNCTIONS_TO_DEACTIVATE), and update the
+%     HB space (HSPACE_REFINE).
+%
+% GeoPDEs (full) pipeline
+% -----------------------
+% Per (degree p, level it):
+% 1) Build HB hierarchy on the refined mesh via ADAPTIVITY_INITIALIZE_LAPLACE and
+%    the refinement loop above.
+%
+% 2) **Assemble & solve** the full HB system:
+%       [u, stiff_mat, rhs, int_dofs, time] = ADAPTIVITY_SOLVE_LAPLACE(hmsh, hspace, problem_data);
+%    where:
+%       • stiff_mat : global stiffness matrix
+%       • rhs       : global right-hand side vector
+%       • int_dofs  : interior DoFs after Dirichlet elimination
+%       • time      : end-to-end assembly + solve wall time
+%
+% 3) **Post-processing / metrics**
+%       – Memory (bytes) on reduced interior system:
+%           RecursiveSize(stiff_mat(int_dofs,int_dofs)), RecursiveSize(rhs(int_dofs)),
+%           RecursiveSize(u(int_dofs))
+%       – Errors vs exact solution:
+%           [errh1, errl2, …] = SP_H1_ERROR(hspace, hmsh, u, u_ex, graduex)
+%       – Norms of the exact solution (for normalization in plots):
+%           [errh1_norm, errl2_norm, …] = SP_H1_ERROR(hspace, hmsh, 0*u, u_ex, graduex)
+%       – Active DoFs: hspace.ndof
+%
+% What is recorded
+% ----------------
+%   results.time_solve{i_deg}    : solve time per refinement level (seconds)
+%   results.memory_K{i_deg}      : bytes of stiff_mat(int_dofs,int_dofs)
+%   results.memory_rhs{i_deg}    : bytes of rhs(int_dofs)
+%   results.memory_u{i_deg}      : bytes of u(int_dofs)
+%   results.errl2{i_deg}         : L²-error vs u_ex
+%   results.errh1{i_deg}         : H¹-error vs u_ex
+%   results.errl2_norm{i_deg}    : ‖u_ex‖_{L²} (via SP_H1_ERROR with zero field)
+%   results.errh1_norm{i_deg}    : ‖u_ex‖_{H¹} (via SP_H1_ERROR with zero field)
+%   results.ndof{i_deg}          : active DoFs (hspace.ndof)
+%
+% Indices
+% -------
+%   i_deg ↔ p ∈ {3,5}. Each vector accumulates values over refinement levels
+%   it = 0 .. levels(p)−1 for the corresponding degree.
+%
+% Saved output (for Figure 13 plots)
+% ----------------------------------
+% After each level, the struct **results** is saved to:
+%   • 'hb_cube_middle_gp.mat'
+%
+% Notes & pitfalls
+% ----------------
+% • This script uses **HB (non-truncated)** spaces and the **full GeoPDEs**
+%   assembly/solve path (not the TT low-rank variant).
+% • The refinement region is **centered and shrinks dyadically** with i_ref,
+%   concentrating resolution near the domain center where forcing/solution peak.
+% • Memory measurements (RecursiveSize) are taken on the **reduced interior
+%   system** (after Dirichlet elimination via `int_dofs`).
+% • Ensure the required adaptivity/GeoPDEs toolboxes are on the MATLAB path,
+%   and that 'geo_cube.txt' is available.
+
 clear;
 
 rng("default");

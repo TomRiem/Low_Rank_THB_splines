@@ -1,3 +1,80 @@
+% FIGURE_11_HB_GEOPDES_SOLVE (SCRIPT)
+% Numerical experiment for Figure 11: classical **GeoPDEs** assembly & solve
+% (no low-rank) of a Poisson problem using **HB-splines** on the cube.
+% We assemble the full stiffness matrix and RHS, solve, and report wall time,
+% memory, accuracy, and problem size across refinement levels.
+%
+% Problem setup
+% -------------
+% Geometry   : cube from 'geo_cube.txt' (B-splines geometry).
+% PDE        : -Δu = f in Ω,  u = 0 on ∂Ω (Dirichlet on all 6 faces).
+% Diffusion  : c_diff ≡ 1.
+% Forcing f  : manufactured with parameter c = 1 (see 'problem_data.f').
+% Exact u_ex : u_ex(x,y,z) = x(x−1) y(y−1) z(z−1) exp(−c x^2).
+% grad u_ex  : provided by 'graduex' as a 3×N array-valued function handle.
+%
+% Discretization / hierarchical space
+% -----------------------------------
+% Basis      : **HB-splines** (no truncation), method_data.truncated = 0.
+% Degrees    : p ∈ {3, 5} (isotropic [p p p]).
+% Regularity : C^{p−1} per direction.
+% Base mesh  : nsub_coarse = [4p, 2, 2] (refined more along x).
+% Refinement : dyadic, nsub_refine = [2 2 2]; levels per degree:
+%              levels = [7, 5] for p = 3 and p = 5, respectively.
+% Quadrature : nquad = [5 5 5].
+% Admissibility: adaptivity_data.adm_class = 2, adm_type = 'H-admissible'.
+%
+% Refinement pattern (shrinking slab along x)
+% -------------------------------------------
+% For each refinement round i_ref on the current finest level:
+%   • Mark all elements with i = 1 : floor(nel_x / 2^i_ref) for every j,k.
+%   • Enforce admissibility (MARK_ADMISSIBLE), refine mesh (HMSH_REFINE),
+%     compute deactivations (COMPUTE_FUNCTIONS_TO_DEACTIVATE), and update
+%     the hierarchical space (HSPACE_REFINE).  (HB: no truncation.)
+%
+% GeoPDEs pipeline (per degree p and level it)
+% --------------------------------------------
+% 1) Initialize hierarchy:
+%      [hmsh, hspace, geometry] = ADAPTIVITY_INITIALIZE_LAPLACE(problem_data, method_data);
+%    Apply the 'it' slab refinements as above.
+%
+% 2) Assemble & solve in the standard (full) format:
+%      [u, stiff_mat, rhs, int_dofs, time] = ADAPTIVITY_SOLVE_LAPLACE(hmsh, hspace, problem_data);
+%    – stiff_mat, rhs: assembled full stiffness matrix and right-hand side.
+%    – int_dofs: interior (non-Dirichlet) DoFs; u is the global vector.
+%    – time: end-to-end solve time returned by the driver.
+%
+% 3) Accuracy metrics:
+%      [errh1, errl2] = SP_H1_ERROR(hspace, hmsh, u, uex, graduex);
+%    Additionally the H1/L2 norms of the exact solution are computed by
+%      SP_H1_ERROR(hspace, hmsh, zeros(size(u)), uex, graduex)
+%    and stored as 'errh1_norm' / 'errl2_norm' for normalized errors.
+%
+% What is recorded
+% ----------------
+% results.time_solve{i_deg}        : end-to-end time per refinement level
+% results.memory_K{i_deg}          : bytes of stiff_mat(int_dofs,int_dofs)
+% results.memory_rhs{i_deg}        : bytes of rhs(int_dofs)
+% results.memory_u{i_deg}          : bytes of u(int_dofs)
+% results.errl2{i_deg}, errh1{i_deg}: L2 / H1 errors vs exact u_ex
+% results.errl2_norm{i_deg}, errh1_norm{i_deg} : L2 / H1 norms of u_ex
+% results.ndof{i_deg}              : active DoFs (hspace.ndof) per level
+% Indices: i_deg ↔ p ∈ {3,5}; each vector accumulates over levels it = 0..levels(p)−1.
+%
+% Saved output (for Figure 11 plots)
+% ----------------------------------
+% File: 'hb_cube_1_bslice_gp.mat'
+%   Contains the 'results' struct with all fields above, updated after each
+%   refinement level for both degrees.
+%
+% Notes & pitfalls
+% ----------------
+% • This is the **HB (non-truncated)** GeoPDEs baseline (no low-rank).
+% • The refinement marks a shrinking slab in x; admissibility keeps the HB
+%   hierarchy consistent.
+% • Memory measurements use RecursiveSize on the *interior* sub-blocks/vectors.
+% • Ensure 'geo_cube.txt' is on the path and GeoPDEs utilities are available.
+
 clear;
 
 rng("default");

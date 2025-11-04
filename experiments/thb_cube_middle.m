@@ -1,3 +1,122 @@
+% FIGURE_12_THB_LOW_RANK_SOLVE (SCRIPT)
+% Numerical experiment for Figure 12: **low-rank (TT) Laplace solve** on the
+% cube using **THB-splines** (truncated hierarchical B-splines). We compare two
+% TT block layouts (format 1 vs 0) and several preconditioners across degrees,
+% refinement levels, and solver tolerances. We record time, memory, and errors.
+%
+% Problem setup
+% -------------
+% Geometry   : cube from 'geo_cube.txt' (B-splines geometry).
+% PDE        : -Δu = f in Ω,  u = 0 on ∂Ω  (Dirichlet on all faces).
+% Diffusion  : c_diff ≡ 1.
+% Forcing f  : localized, centered around (1/2,1/2,1/2) with parameter c = 1
+%              (see 'problem_data.f' — product structure per coordinate).
+% Exact u_ex : u_ex(x,y,z) = x(x−1) y(y−1) z(z−1) exp(−c (x−1/2)^2 (y−1/2)^2 (z−1/2)^2).
+% grad u_ex  : given by 'graduex' as a 3×N array-valued function handle.
+%
+% Discretization / hierarchical space
+% -----------------------------------
+% Basis      : **THB-splines** (truncated), method_data.truncated = 1.
+% Degrees    : p ∈ {3, 5} (isotropic [p p p]).
+% Regularity : C^{p−1} per direction.
+% Base mesh  : nsub_coarse = [2 2 2]*p + [2 2 2]  (moderately refined base).
+% Refinement : dyadic, nsub_refine = [2 2 2]; levels per degree:
+%              levels = [8, 6] for p = 3 and p = 5, respectively.
+% Quadrature : nquad = [5 5 5].
+% Admissibility: adaptivity_data.adm_class = 2.
+%
+% Refinement pattern (centered cube)
+% ----------------------------------
+% For each refinement round i_ref on the current finest level:
+%   • Mark indices i,j,k in the range (nel_dir/2 − p + 1) : (nel_dir/2 + p)
+%     in each coordinate — i.e., a p-thick cube around the geometric center.
+%   • Enforce admissibility (MARK_ADMISSIBLE), refine mesh (HMSH_REFINE),
+%     compute deactivations (COMPUTE_FUNCTIONS_TO_DEACTIVATE), and update
+%     the THB space (HSPACE_REFINE).
+%
+% Low-rank (TT) pipeline
+% ----------------------
+% Per (degree p, level it, tolerance τ):
+% 1) Set solver tolerances
+%       low_rank_data.sol_tol = τ
+%       low_rank_data.rankTol = τ/100       % (and rankTol_f = τ/100)
+%    Set RHS spline degree: low_rank_data.rhs_degree = [p p p].
+%
+% 2) Low-rank interpolation of geometry & RHS
+%       [H, rhs, t_int] = ADAPTIVITY_INTERPOLATION_SYSTEM_RHS(geometry, low_rank_data, problem_data);
+%    where:
+%       • H   : TT ingredients (metrics/weights, etc.)
+%       • rhs : TT right-hand side
+%       • t_int: interpolation wall time
+%
+% 3) Low-rank solve in **two TT block layouts**, with different preconditioners:
+%    (a) Format 1 — cuboid-wise layout
+%          low_rank_data.block_format = 1
+%          low_rank_data.preconditioner ∈ preconditioners_1{i_deg}
+%          [u, u_tt, TT_K, TT_rhs, t_lr, td] = ADAPTIVITY_SOLVE_LAPLACE_LOW_RANK(...)
+%        – Measure time t_lr, memory of TT_K / TT_rhs / u_tt, and errors
+%          (SP_H1_ERROR vs u_ex/graduex). Store in results_1.
+%    (b) Format 0 — level-wise layout
+%          low_rank_data.block_format = 0
+%          low_rank_data.preconditioner ∈ preconditioners_2{i_deg}
+%          Same measurements as (a). Store in results_2.
+%
+% Preconditioner sets used
+% ------------------------
+% Degree p = 3:
+%   • Format 1: preconditioners_1{1} = [2, 4]
+%   • Format 0: preconditioners_2{1} = [1, 2]
+% Degree p = 5:
+%   • Format 1: preconditioners_1{2} = [2]
+%   • Format 0: preconditioners_2{2} = [2]
+% (Codes 1/2/4 refer to the internal THB/HB block preconditioners implemented
+%  by the solver; they select different local solves/transfers in the TT-GMRES
+%  preconditioning step.)
+%
+% What is recorded
+% ----------------
+% For **Format 1** (results_1; block_format = 1):
+%   results_1.time_interpolation{i_deg, i_tol} : interpolation time t_int
+%   results_1.time_solve{i_deg, i_tol, i_p}    : solver time t_lr
+%   results_1.memory_K{i_deg, i_tol, i_p}      : bytes of TT_K
+%   results_1.memory_rhs{i_deg, i_tol, i_p}    : bytes of TT_rhs
+%   results_1.memory_u{i_deg, i_tol, i_p}      : bytes of u_tt
+%   results_1.td{i_deg, i_tol, i_p}            : solver diagnostics (e.g. iter/residuals)
+%   results_1.errl2{i_deg, i_tol, i_p}         : L2-error vs u_ex
+%   results_1.errh1{i_deg, i_tol, i_p}         : H1-error vs u_ex
+%   results_1.ndof{i_deg, i_tol, i_p}          : active DoFs (hspace.ndof)
+%
+% For **Format 0** (results_2; block_format = 0):
+%   results_2.time_solve{i_deg, i_tol, i_p}    : solver time t_lr
+%   results_2.memory_K{i_deg, i_tol, i_p}      : bytes of TT_K
+%   results_2.memory_rhs{i_deg, i_tol, i_p}    : bytes of TT_rhs
+%   results_2.memory_u{i_deg, i_tol, i_p}      : bytes of u_tt
+%   results_2.td{i_deg, i_tol, i_p}            : solver diagnostics
+%   results_2.errl2{i_deg, i_tol, i_p}         : L2-error vs u_ex
+%   results_2.errh1{i_deg, i_tol, i_p}         : H1-error vs u_ex
+%
+% Indices:
+%   i_deg ↔ p ∈ {3,5};  i_tol ↔ τ ∈ {1e−3, 1e−5, 1e−7};  i_p ↔ chosen preconditioner.
+% Each vector accumulates values over refinement levels it = 0..levels(p)−1.
+%
+% Saved output (for Figure 12 plots)
+% ----------------------------------
+% After each (p, level, τ) block:
+%   • Format 1 metrics → 'thb_cube_middle_1.mat'  (struct results_1)
+%   • Format 0 metrics → 'thb_cube_middle_2.mat'  (struct results_2)
+%
+% Notes & pitfalls
+% ----------------
+% • This script uses **THB (truncated)** spaces and the **low-rank (TT)**
+%   assembly/solve path. Set low_rank_data.geometry_format if you later switch
+%   geometry types (here the geometry comes from a B-spline map).
+% • RHS quadrature resolution uses low_rank_data.rhs_nsub = [25 25 25];
+%   increase if the RHS has sharper features.
+% • Memory measurements (RecursiveSize) are taken on TT objects, not full
+%   matrices/vectors.
+% • Ensure the required adaptivity and TT toolboxes are on the MATLAB path,
+%   and 'geo_cube.txt' is available.
+
 clear;
 
 rng("default");

@@ -1,3 +1,99 @@
+% FIGURE_11_HB_LOW_RANK_SOLVE (SCRIPT)
+% Numerical experiment for Figure 11: **low-rank (TT)** assembly & solve of a
+% Poisson problem using **HB-splines** on the cube. We assemble the stiffness
+% operator and right-hand side in low rank, solve with TT-GMRES and several
+% preconditioners, and report time, memory, accuracy, and problem size.
+%
+% Problem setup
+% -------------
+% Geometry   : cube from 'geo_cube.txt' (B-splines geometry).
+% PDE        : -Δu = f in Ω,  u = 0 on ∂Ω (Dirichlet on all 6 faces).
+% Diffusion  : c_diff ≡ 1.
+% Forcing f  : manufactured (parameter c = 1) to match the exact solution.
+% Exact u_ex : u_ex(x,y,z) = x(x-1) y(y-1) z(z-1) exp(-c x^2).
+% grad u_ex  : provided by 'graduex' (3×N array-valued handle).
+%
+% Discretization / hierarchical space
+% -----------------------------------
+% Basis      : **HB-splines** (no truncation), method_data.truncated = 0.
+% Degrees    : p ∈ {3, 5} (isotropic [p p p]).
+% Regularity : C^{p−1} per direction.
+% Base mesh  : nsub_coarse = [4p, 2, 2] (finer along x).
+% Refinement : dyadic, nsub_refine = [2 2 2]; levels per degree:
+%              levels = [7, 5] for p = 3 and p = 5, respectively.
+% Quadrature : nquad = [5 5 5].
+% Admissibility: adaptivity_data.adm_class = 2, adm_type = 'H-admissible'.
+%
+% Refinement pattern (shrinking slab along x)
+% -------------------------------------------
+% For each refinement round i_ref on the current finest level:
+%   • Mark all elements with i = 1 : floor(nel_x / 2^i_ref) for every j,k.
+%   • Enforce admissibility (MARK_ADMISSIBLE), refine mesh (HMSH_REFINE),
+%     compute deactivations (COMPUTE_FUNCTIONS_TO_DEACTIVATE), and update
+%     the hierarchical space (HSPACE_REFINE).  (HB: no truncation.)
+%
+% Low-rank pipeline (per degree p and level it)
+% ---------------------------------------------
+% 1) Initialize hierarchy:
+%      [hmsh, hspace, geometry] = ADAPTIVITY_INITIALIZE_LAPLACE(problem_data, method_data);
+%    Apply the 'it' slab refinements as above.
+%
+% 2) Build low-rank ingredients & RHS:
+%      low_rank_data.mass = 0; low_rank_data.stiffness = 1;
+%      low_rank_data.TT_interpolation = 1; rhs_nsub = [25 25 25];
+%      [H, rhs, t_int] = ADAPTIVITY_INTERPOLATION_SYSTEM_RHS(geometry, low_rank_data, problem_data);
+%    H contains separated metric factors for stiffness; rhs is the TT-RHS.
+%
+% 3) Solve in TT with block-format 1 and preconditioners:
+%      For preconditioner in {2, 4}:
+%        low_rank_data.block_format = 1;
+%        low_rank_data.preconditioner = precond_id;
+%        [u, u_tt, TT_K, TT_rhs, t_lr, td] = ADAPTIVITY_SOLVE_LAPLACE_LOW_RANK(H, rhs, hmsh, hspace, low_rank_data);
+%    – TT_K, TT_rhs: low-rank stiffness and RHS (block layout = active cuboids).
+%    – u_tt: TT solution; u: physical vector (assembled when full_solution=1).
+%    – td: solver diagnostics (e.g., GMRES iterations/residuals).
+%
+% 4) Accuracy metrics:
+%      [errh1, errl2] = SP_H1_ERROR(hspace, hmsh, u, uex, graduex);
+%
+% Tolerances and rounding
+% -----------------------
+% • Sweep over sol_tol ∈ {1e−3, 1e−5, 1e−7}; set
+%     low_rank_data.rankTol    = 1e−2 * sol_tol
+%     low_rank_data.rankTol_f  = 1e−2 * sol_tol
+%   for TT rounding of operators and intermediate products.
+%
+% What is recorded
+% ----------------
+% results_1.time_interpolation{i_deg, i_tol} : TT interpolation time t_int
+% results_1.time_solve{i_deg, i_tol, i_p}    : TT solve time t_lr
+% results_1.memory_K / memory_rhs / memory_u : bytes of TT_K / TT_rhs / u_tt (RecursiveSize)
+% results_1.td{i_deg, i_tol, i_p}            : solver diagnostics struct/array
+% results_1.errl2 / errh1                    : L2 / H1 errors vs exact u_ex
+% results_1.ndof                              : active DoFs (hspace.ndof)
+% Indices: i_deg ↔ p ∈ {3,5}; i_tol over tolerances; i_p over preconditioners {2,4}.
+%
+% Saved output (for Figure 11 plots)
+% ----------------------------------
+% File: 'hb_cube_1_bslice_1.mat'
+%   Contains the 'results_1' struct with all vectors above accumulated over
+%   refinement levels it = 0..levels(p)−1 for each p and tolerance.
+%
+% Key low-rank options used
+% -------------------------
+% • low_rank_data.lowRankMethod = 'TT'
+% • block_format = 1 (cuboid blocks); geometry_format = 'B-Splines'
+% • full_solution = 1 (materialize the physical solution vector for errors)
+%
+% Notes & pitfalls
+% ----------------
+% • This script evaluates the **HB** variant (no truncation). For the THB
+%   counterpart see the Figure 10 THB low-rank script.
+% • Preconditioner IDs {2,4} refer to the solver’s internal variants used by
+%   SOLVE_LINEAR_SYSTEM/ADAPTIVITY_SOLVE_LAPLACE_LOW_RANK.
+% • Memory is reported on TT objects (not the hypothetical full matrices).
+% • Ensure 'geo_cube.txt' is on the path and GeoPDEs/TT-Toolbox utilities are available.
+
 clear;
 
 rng("default");
