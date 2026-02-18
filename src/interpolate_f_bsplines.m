@@ -55,7 +55,7 @@ function [rhs] = interpolate_f_bsplines(rhs, f, geometry, opt)
 %   3) Forms and solves the interpolation system:
 %        • 2D: Kronecker matrix eqMatrix = kron(B̃₂ᵀ, B̃₁ᵀ); right-hand side F evaluated at
 %          mapped Greville points (x,y); solve eqMatrix \ vec(F_vals) and reshape.
-%        • 3D: Builds TT “evaluation matrix” from Greville factors (tt_matrix), evaluates
+%        • 3D: Builds TT "evaluation matrix" from Greville factors (tt_matrix), evaluates
 %          (x,y,z) at Greville points, then computes coefficients with AMEn (amen_block_solve)
 %          and rounds to OPT.rankTol_f. This mirrors the low-rank Greville interpolation used
 %          for weights/ω, now applied to f. 

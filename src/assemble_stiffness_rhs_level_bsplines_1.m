@@ -2,7 +2,7 @@ function [TT_K, TT_rhs] = assemble_stiffness_rhs_level_bsplines_1(H, rhs, level,
     cuboid_cells, cuboid_splines_level, hspace, hmsh, low_rank_data)
 % ASSEMBLE_STIFFNESS_RHS_LEVEL_BSPLINES_1
 % Level-wise assembly of stiffness and load in TT format on a B-spline
-% hierarchical level, integrating only over the ACTIVE “cuboid” subdomains.
+% hierarchical level, integrating only over the ACTIVE "cuboid" subdomains.
 %
 % [TT_K, TT_RHS] = ASSEMBLE_STIFFNESS_RHS_LEVEL_BSPLINES_1( ...
 %           H, rhs, level, level_ind, cuboid_cells, cuboid_splines_level, ...
@@ -14,7 +14,7 @@ function [TT_K, TT_rhs] = assemble_stiffness_rhs_level_bsplines_1(H, rhs, level,
 % tensor-train (TT) blocks of:
 %   • TT_K   – the local stiffness operator (∇u·∇v),
 %   • TT_RHS – the local load vector,
-% by integrating ONLY over the level’s active cell cuboids (“_1” variant).
+% by integrating ONLY over the level's active cell cuboids ("_1" variant).
 % The geometry may be B-splines or NURBS; its effect is already encoded in H
 % (weights/metrics) and rhs (separable source).
 %
@@ -57,7 +57,7 @@ function [TT_K, TT_rhs] = assemble_stiffness_rhs_level_bsplines_1(H, rhs, level,
 %    • TT_RHS = tt_zeros([n1 n2 n3])
 %
 % 3) Loop over ACTIVE cell cuboids:
-%    • From the cuboid’s start and extents, define the knot-area (ranges per dir).
+%    • From the cuboid's start and extents, define the knot-area (ranges per dir).
 %    • Stiffness localization:
 %        H_plus = UNIVARIATE_GRADU_GRADV_AREA_BSPLINES(H, ..., knot_area, ...)
 %      which yields per-direction 1D factor matrices for the nine grad–grad
@@ -72,7 +72,7 @@ function [TT_K, TT_rhs] = assemble_stiffness_rhs_level_bsplines_1(H, rhs, level,
 %
 % Notes
 % -----
-% • “_1” variant = integrate on ACTIVE cuboids only. Use the “_2” variant when
+% • "_1" variant = integrate on ACTIVE cuboids only. Use the "_2" variant when
 %   not-active cuboids dominate; it integrates over a larger window and subtracts
 %   the not-active parts.
 % • The returned TT blocks live on the local tensor-product DOF box
@@ -93,20 +93,14 @@ function [TT_K, TT_rhs] = assemble_stiffness_rhs_level_bsplines_1(H, rhs, level,
         knot_area{3} = knot_indices{3}(cuboid_cells{level_ind}.active_cuboids{i_domain}(3):(cuboid_cells{level_ind}.active_cuboids{i_domain}(3) + cuboid_cells{level_ind}.active_cuboids{i_domain}(6)-1));
         H_plus = univariate_gradu_gradv_area_bsplines(H_plus, hspace, level, level_ind, knot_area, cuboid_splines_level);
         for i=1:9 
-            for j = 1:H.stiffness.R(H.stiffness.order(i),1)
-                for k = 1:H.stiffness.R(H.stiffness.order(i),3)
-                    TT_K = round(TT_K + tt_matrix({full(H_plus.stiffness.K{1}{i}{j}); ...
-                        full(H_plus.stiffness.K{2}{i}{k+(j-1)*H.stiffness.R(H.stiffness.order(i),3)}); ...
-                        full(H_plus.stiffness.K{3}{i}{k})}), low_rank_data.rankTol);
-                end
+            if ~isempty(H_plus.stiffness.K{i})
+                TT_K = TT_K + cell2core(tt_matrix, H_plus.stiffness.K{i});
             end
         end
+        TT_K = round(TT_K, low_rank_data.rankTol);
         rhs_plus = rhs;
         rhs_plus = univariate_f_area_bsplines(rhs_plus, H_plus, hspace, level, level_ind, knot_area, cuboid_splines_level);
-        for j = 1:rhs.R(1)*rhs.R_f(1)
-            for k = 1:rhs.R(3)*rhs.R_f(3)  
-                TT_rhs = round(TT_rhs + tt_tensor_2({rhs_plus.fv{1}{j}; rhs_plus.fv{2}{k + (j-1)*rhs.R(3)*rhs.R_f(3)}; rhs_plus.fv{3}{k}}), low_rank_data.rankTol_f);
-            end
-        end
+        TT_plus = cell2core(tt_tensor, rhs_plus.fv);
+        TT_rhs = round(TT_rhs + TT_plus, low_rank_data.rankTol_f);
     end
 end

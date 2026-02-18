@@ -86,14 +86,9 @@ function [TT_K] = assemble_stiffness_level_bsplines_2(H, level, level_ind, cuboi
     H_all = univariate_gradu_gradv_area_bsplines(H_all, hspace, level, level_ind, knot_area, cuboid_splines_level);
     TT_K = tt_zeros([cuboid_splines_level{level_ind}.tensor_size', cuboid_splines_level{level_ind}.tensor_size']);
     for i=1:9 
-        for j = 1:H.stiffness.R(H.stiffness.order(i),1)
-            for k = 1:H.stiffness.R(H.stiffness.order(i),3)
-                TT_K = round(TT_K + tt_matrix({full(H_all.stiffness.K{1}{i}{j}); ...
-                    full(H_all.stiffness.K{2}{i}{k+(j-1)*H.stiffness.R(H.stiffness.order(i),3)}); ...
-                    full(H_all.stiffness.K{3}{i}{k})}), low_rank_data.rankTol);
-            end
-        end
+        TT_K = TT_K + cell2core(tt_matrix, H_all.stiffness.K{i});
     end
+    TT_K = round(TT_K, low_rank_data.rankTol);
     for i_domain = 1:cuboid_cells{level_ind}.n_not_active_cuboids
         H_minus = H;
         knot_area{1} = knot_indices{1}(cuboid_cells{level_ind}.not_active_cuboids{i_domain}(1):(cuboid_cells{level_ind}.not_active_cuboids{i_domain}(1) + cuboid_cells{level_ind}.not_active_cuboids{i_domain}(4)-1));
@@ -101,13 +96,8 @@ function [TT_K] = assemble_stiffness_level_bsplines_2(H, level, level_ind, cuboi
         knot_area{3} = knot_indices{3}(cuboid_cells{level_ind}.not_active_cuboids{i_domain}(3):(cuboid_cells{level_ind}.not_active_cuboids{i_domain}(3) + cuboid_cells{level_ind}.not_active_cuboids{i_domain}(6)-1));
         H_minus = univariate_gradu_gradv_area_bsplines(H_minus, hspace, level, level_ind, knot_area, cuboid_splines_level);
         for i=1:9 
-            for j = 1:H.stiffness.R(H.stiffness.order(i),1)
-                for k = 1:H.stiffness.R(H.stiffness.order(i),3)
-                    TT_K = round(TT_K - tt_matrix({full(H_minus.stiffness.K{1}{i}{j}); ...
-                        full(H_minus.stiffness.K{2}{i}{k+(j-1)*H.stiffness.R(H.stiffness.order(i),3)}); ...
-                        full(H_minus.stiffness.K{3}{i}{k})}), low_rank_data.rankTol);
-                end
-            end
+            TT_K = TT_K - cell2core(tt_matrix, H_minus.stiffness.K{i});
         end
+        TT_K = round(TT_K, low_rank_data.rankTol);
     end
 end

@@ -71,34 +71,80 @@ function [rhs] = univariate_f_area_bsplines(rhs, H, hspace, level, level_ind, kn
     
     rhs.fv = cell(3,1);
 
+    rhs.fv{1} = zeros(1, cuboid_splines_level{level_ind}.tensor_size(1), rhs.weightMat.r(2)*rhs.weightMat_f.r(2));
+    rhs.fv{2} = zeros(rhs.weightMat.r(2)*rhs.weightMat_f.r(2), cuboid_splines_level{level_ind}.tensor_size(2), rhs.weightMat.r(3)*rhs.weightMat_f.r(3));
+    rhs.fv{3} = zeros(rhs.weightMat.r(3)*rhs.weightMat_f.r(3), cuboid_splines_level{level_ind}.tensor_size(3));
+
+    cores_w = core2cell(rhs.weightMat);
+    cores_f = core2cell(rhs.weightMat_f);
+
     for dim = 1:3
-        rhs.fv{dim} = cell(rhs.R(dim)*rhs.R_f(dim), 1);
-        rhs.fv{dim}(:) = {sparse(cuboid_splines_level{level_ind}.tensor_size(dim),1)};
-    
-        for l = knot_area{dim}                      
-            a = hspace.space_of_level(level).knots{dim}(l);
-            b = hspace.space_of_level(level).knots{dim}(l+1);
+        R_left   = rhs.weightMat.r(dim);
+        R_right  = rhs.weightMat.r(dim+1);
+        RF_left  = rhs.weightMat_f.r(dim);
+        RF_right = rhs.weightMat_f.r(dim+1);
 
-            xx = (b-a)/2*s + (a+b)/2;
-    
-            N        = evalBSpline(hspace.space_of_level(level).knots{dim}, hspace.space_of_level(level).degree(dim), xx);
-            W_r      = evalBSpline(H.weightFun.knots{dim}, H.weightFun.degree(dim), xx);
-            F_rf     = evalBSpline(rhs.int_f.knots{dim}, rhs.int_f.degree(dim), xx);
+        P = R_left  * RF_left;   
+        Q = R_right * RF_right;  
 
-            for i = l - hspace.space_of_level(level).degree(dim) : l
-                for r   = 1:rhs.R(dim)
-                    wr =  W_r' * rhs.SVDU{dim}(:,r);
-    
-                    for rf  = 1:rhs.R_f(dim)
-                        comb   = rf + (r-1)*rhs.R_f(dim);
-                        frf    = F_rf' * rhs.SVDU_f{dim}(:,rf);
-    
-                        rhs.fv{dim}{comb}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i)) = rhs.fv{dim}{comb}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i)) + ...
-                            ((b-a)/2) * sum( w .* N(i,:)' .* wr .* frf );
-                    end
+
+        Cw = reshape(permute(cores_w{dim}, [2 1 3]), [], R_left*R_right);       
+        Cf = reshape(permute(cores_f{dim}, [2 1 3]), [], RF_left*RF_right);    
+
+
+        deg_sol = hspace.space_of_level(level).degree(dim);
+        kts_sol = hspace.space_of_level(level).knots{dim};
+        kts_w   = H.weightFun.knots{dim};
+        deg_w   = H.weightFun.degree(dim);
+        kts_f   = rhs.int_f.knots{dim};
+        deg_f   = rhs.int_f.degree(dim);
+
+        for l = knot_area{dim}
+            a  = kts_sol(l);
+            b  = kts_sol(l+1);
+            xx = (b-a)/2*s + (a+b)/2;  
+            J  = (b-a)/2;               
+
+
+            N    = evalBSpline(kts_sol, deg_sol, xx);
+            W_r  = evalBSpline(kts_w,   deg_w,   xx);
+            F_rf = evalBSpline(kts_f,   deg_f,   xx);
+
+            
+            A = W_r.' * Cw;   
+            B = F_rf.' * Cf;  
+
+
+            i_support = (l - deg_sol) : l;
+            i_loc     = cuboid_splines_level{level_ind}.shifted_indices{dim}(i_support);
+
+            nq = numel(w);
+            k  = numel(i_support);
+            Ni = N(i_support, :).';      
+            base_g = J .* w;            
+
+            for t = 1:k
+                
+                g = base_g .* Ni(:,t);   
+
+                
+                KB = bsxfun(@times, B, g);      
+                K  = A.' * KB;                  
+
+                
+                K4   = reshape(K, [R_left, R_right, RF_left, RF_right]);   
+                K4p  = permute(K4, [1 3 2 4]);                              
+                M    = reshape(K4p, [P, Q]);                                
+
+                switch dim
+                    case 1  
+                        rhs.fv{1}(1, i_loc(t), :) = rhs.fv{1}(1, i_loc(t), :) + reshape(M, [1,1,Q]);
+                    case 2  
+                        rhs.fv{2}(:, i_loc(t), :) = rhs.fv{2}(:, i_loc(t), :) + reshape(M, [P,1,Q]);
+                    case 3  
+                        rhs.fv{3}(:, i_loc(t))    = rhs.fv{3}(:, i_loc(t))    + M(:,1);
                 end
             end
         end
     end
-
 end

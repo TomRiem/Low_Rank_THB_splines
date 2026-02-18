@@ -36,8 +36,8 @@ function [TT_K, TT_rhs, cuboid_splines_system, precon, low_rank_data] = assemble
 %
 % hspace : struct / object
 % Hierarchical spline space with fields:
-% .active{l} – active DOF indices of level l (full grid)
-% .space_of_level(l).ndof_dir– [n1,n2,n3] per level
+% .active{ℓ} – active DOF indices of level ℓ (full grid)
+% .space_of_level(ℓ).ndof_dir– [n1,n2,n3] per level
 % Only these fields are accessed here.
 %
 % nlevels : scalar
@@ -47,7 +47,7 @@ function [TT_K, TT_rhs, cuboid_splines_system, precon, low_rank_data] = assemble
 % For each kept level, the level-local index mapping (already created by
 % CUBOID_DETECTION at assembly time), with fields:
 % .tensor_size(d) – shrunk 1D size in dir d
-% .shifted_indices{d}(i_full) – full -> shrunk index map (0 if dropped)
+% .shifted_indices{d}(i_full) – full → shrunk index map (0 if dropped)
 % .indices{d} – kept full indices (if requested upstream)
 %
 % precon : struct (input/output)
@@ -91,7 +91,7 @@ function [TT_K, TT_rhs, cuboid_splines_system, precon, low_rank_data] = assemble
 % • For every active cuboid s in level i, build a Kronecker selection
 % operator J{i}{s} = kron3(X,Y,Z) in TT via:
 % – X/Y/Z are column pickers (sub-identity) that map from the
-% shrunk level-local DOFs to the cuboid’s DOFs in each direction,
+% shrunk level-local DOFs to the cuboid's DOFs in each direction,
 % using cuboid_splines_level{i}.shifted_indices and the cuboid extents.
 %
 % • Assemble within-level blocks by restriction:
@@ -190,6 +190,7 @@ function [TT_K, TT_rhs, cuboid_splines_system, precon, low_rank_data] = assemble
                     TT_K{i_lev, i_lev}{i_sa, j_sa} = TT_K{i_lev, i_lev}{j_sa, i_sa}';
                 end
             end
+            TT_stiffness_all{i_lev, i_lev} = [];
             for j_lev = (i_lev-1):-1:1
                 TT_K{i_lev, j_lev} = cell(cuboid_splines_system{i_lev}.n_active_cuboids, cuboid_splines_system{j_lev}.n_active_cuboids);
                 TT_K{j_lev, i_lev} = cell(cuboid_splines_system{j_lev}.n_active_cuboids, cuboid_splines_system{i_lev}.n_active_cuboids);
@@ -199,6 +200,7 @@ function [TT_K, TT_rhs, cuboid_splines_system, precon, low_rank_data] = assemble
                         TT_K{j_lev, i_lev}{j_sa, i_sa} = TT_K{i_lev, j_lev}{i_sa, j_sa}';
                     end
                 end
+                TT_stiffness_all{i_lev, j_lev} = [];
             end
             precon.P{i_lev} = TT_K{i_lev, i_lev};
             precon.cell_indices{i_lev} = cell_counter:(cell_counter + cuboid_splines_system{i_lev}.n_active_cuboids - 1);
@@ -231,18 +233,10 @@ function [TT_K, TT_rhs, cuboid_splines_system, precon, low_rank_data] = assemble
                     TT_K{i_lev, i_lev}{i_sa, j_sa} = TT_K{i_lev, i_lev}{j_sa, i_sa}';
                 end
             end
+            TT_stiffness_all{i_lev, i_lev} = [];
             precon.P{i_lev} = cell(cuboid_splines_system{i_lev}.n_active_cuboids, 1);
             for i_sa = 1:cuboid_splines_system{i_lev}.n_active_cuboids
-                precon.P{i_lev}{i_sa} = tt_zeros([size(TT_K{i_lev, i_lev}{i_sa, i_sa})]);
-                tt_ranks = TT_K{i_lev, i_lev}{i_sa, i_sa}.r;
-                for r_1 = 1:tt_ranks(2)
-                    for r_2 = 1:tt_ranks(3)
-                        precon.P{i_lev}{i_sa} = round(precon.P{i_lev}{i_sa} + ...
-                            tt_matrix({diag(diag(reshape(TT_K{i_lev, i_lev}{i_sa, i_sa}{1}(1, :, :, r_1), [TT_K{i_lev, i_lev}{i_sa, i_sa}.n(1), TT_K{i_lev, i_lev}{i_sa, i_sa}.m(1)]))); ...
-                            diag(diag(reshape(TT_K{i_lev, i_lev}{i_sa, i_sa}{2}(r_1, :, :, r_2), [TT_K{i_lev, i_lev}{i_sa, i_sa}.n(2), TT_K{i_lev, i_lev}{i_sa, i_sa}.m(2)]))); ...
-                            diag(diag(reshape(TT_K{i_lev, i_lev}{i_sa, i_sa}{3}(r_2, :, :, 1), [TT_K{i_lev, i_lev}{i_sa, i_sa}.n(3), TT_K{i_lev, i_lev}{i_sa, i_sa}.m(3)])))}), low_rank_data.rankTol);
-                    end
-                end
+                precon.P{i_lev}{i_sa} = diag(diag(TT_K{i_lev, i_lev}{i_sa, i_sa}));
             end
             for j_lev = (i_lev-1):-1:1
                 TT_K{i_lev, j_lev} = cell(cuboid_splines_system{i_lev}.n_active_cuboids, cuboid_splines_system{j_lev}.n_active_cuboids);
@@ -253,6 +247,7 @@ function [TT_K, TT_rhs, cuboid_splines_system, precon, low_rank_data] = assemble
                         TT_K{j_lev, i_lev}{j_sa, i_sa} = TT_K{i_lev, j_lev}{i_sa, j_sa}';
                     end
                 end
+                TT_stiffness_all{i_lev, j_lev} = [];
             end
         end
     elseif isfield(low_rank_data,'preconditioner') && low_rank_data.preconditioner == 3
@@ -286,6 +281,7 @@ function [TT_K, TT_rhs, cuboid_splines_system, precon, low_rank_data] = assemble
                     precon.P{i_lev}{i_sa, j_sa} = precon.P{i_lev}{j_sa, i_sa}';
                 end
             end
+            TT_stiffness_all{i_lev, i_lev} = [];
             for j_lev = (i_lev-1):-1:1
                 TT_K{i_lev, j_lev} = cell(cuboid_splines_system{i_lev}.n_active_cuboids, cuboid_splines_system{j_lev}.n_active_cuboids);
                 TT_K{j_lev, i_lev} = cell(cuboid_splines_system{j_lev}.n_active_cuboids, cuboid_splines_system{i_lev}.n_active_cuboids);
@@ -295,6 +291,7 @@ function [TT_K, TT_rhs, cuboid_splines_system, precon, low_rank_data] = assemble
                         TT_K{j_lev, i_lev}{j_sa, i_sa} = TT_K{i_lev, j_lev}{i_sa, j_sa}';
                     end
                 end
+                TT_stiffness_all{i_lev, j_lev} = [];
             end
             precon.cell_indices{i_lev} = cell_counter:(cell_counter + cuboid_splines_system{i_lev}.n_active_cuboids - 1);
             cell_counter = cell_counter + cuboid_splines_system{i_lev}.n_active_cuboids;
@@ -328,6 +325,7 @@ function [TT_K, TT_rhs, cuboid_splines_system, precon, low_rank_data] = assemble
                     TT_K{i_lev, i_lev}{i_sa, j_sa} = TT_K{i_lev, i_lev}{j_sa, i_sa}';
                 end
             end
+            TT_stiffness_all{i_lev, i_lev} = [];
             for j_lev = (i_lev-1):-1:1
                 TT_K{i_lev, j_lev} = cell(cuboid_splines_system{i_lev}.n_active_cuboids, cuboid_splines_system{j_lev}.n_active_cuboids);
                 TT_K{j_lev, i_lev} = cell(cuboid_splines_system{j_lev}.n_active_cuboids, cuboid_splines_system{i_lev}.n_active_cuboids);
@@ -337,6 +335,7 @@ function [TT_K, TT_rhs, cuboid_splines_system, precon, low_rank_data] = assemble
                         TT_K{j_lev, i_lev}{j_sa, i_sa} = TT_K{i_lev, j_lev}{i_sa, j_sa}';
                     end
                 end
+                TT_stiffness_all{i_lev, j_lev} = [];
             end
         end
     else
@@ -366,6 +365,7 @@ function [TT_K, TT_rhs, cuboid_splines_system, precon, low_rank_data] = assemble
                     TT_K{i_lev, i_lev}{i_sa, j_sa} = TT_K{i_lev, i_lev}{j_sa, i_sa}';
                 end
             end
+            TT_stiffness_all{i_lev, i_lev} = [];
             for j_lev = (i_lev-1):-1:1
                 TT_K{i_lev, j_lev} = cell(cuboid_splines_system{i_lev}.n_active_cuboids, cuboid_splines_system{j_lev}.n_active_cuboids);
                 TT_K{j_lev, i_lev} = cell(cuboid_splines_system{j_lev}.n_active_cuboids, cuboid_splines_system{i_lev}.n_active_cuboids);
@@ -375,6 +375,7 @@ function [TT_K, TT_rhs, cuboid_splines_system, precon, low_rank_data] = assemble
                         TT_K{j_lev, i_lev}{j_sa, i_sa} = TT_K{i_lev, j_lev}{i_sa, j_sa}';
                     end
                 end
+                TT_stiffness_all{i_lev, j_lev} = [];
             end
         end
     end

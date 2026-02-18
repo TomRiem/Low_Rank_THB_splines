@@ -79,22 +79,15 @@ function [TT_rhs] = assemble_rhs_level_bsplines_2(H, rhs, level, level_ind, ....
     knot_area{3} = knot_indices{3};
     rhs_all = rhs;
     rhs_all = univariate_f_area_bsplines(rhs_all, H, hspace, level, level_ind, knot_area, cuboid_splines_level);
-    TT_rhs = tt_zeros(cuboid_splines_level{level_ind}.tensor_size');
-    for j = 1:rhs.R(1)*rhs.R_f(1)
-        for k = 1:rhs.R(3)*rhs.R_f(3)  
-            TT_rhs = round(TT_rhs + tt_tensor_2({rhs_all.fv{1}{j}; rhs_all.fv{2}{k + (j-1)*rhs.R(3)*rhs.R_f(3)}; rhs_all.fv{3}{k}}), low_rank_data.rankTol_f);
-        end
-    end
+    TT_rhs = cell2core(tt_tensor, rhs_all.fv);
+    TT_rhs = round(TT_rhs, low_rank_data.rankTol_f);
     for i_domain = 1:cuboid_cells{level_ind}.n_not_active_cuboids
         knot_area{1} = knot_indices{1}(cuboid_cells{level_ind}.not_active_cuboids{i_domain}(1):(cuboid_cells{level_ind}.not_active_cuboids{i_domain}(1) + cuboid_cells{level_ind}.not_active_cuboids{i_domain}(4)-1));
         knot_area{2} = knot_indices{2}(cuboid_cells{level_ind}.not_active_cuboids{i_domain}(2):(cuboid_cells{level_ind}.not_active_cuboids{i_domain}(2) + cuboid_cells{level_ind}.not_active_cuboids{i_domain}(5)-1));
         knot_area{3} = knot_indices{3}(cuboid_cells{level_ind}.not_active_cuboids{i_domain}(3):(cuboid_cells{level_ind}.not_active_cuboids{i_domain}(3) + cuboid_cells{level_ind}.not_active_cuboids{i_domain}(6)-1));
         rhs_minus = rhs;
         rhs_minus = univariate_f_area_bsplines(rhs_minus, H, hspace, level, level_ind, knot_area, cuboid_splines_level);
-        for j = 1:rhs.R(1)*rhs.R_f(1)
-            for k = 1:rhs.R(3)*rhs.R_f(3)  
-                TT_rhs = round(TT_rhs - tt_tensor_2({rhs_minus.fv{1}{j}; rhs_minus.fv{2}{k + (j-1)*rhs.R(3)*rhs.R_f(3)}; rhs_minus.fv{3}{k}}), low_rank_data.rankTol_f);
-            end
-        end
+        TT_minus = cell2core(tt_tensor, rhs_minus.fv);
+        TT_rhs = round(TT_rhs - TT_minus, low_rank_data.rankTol_f);
     end
 end

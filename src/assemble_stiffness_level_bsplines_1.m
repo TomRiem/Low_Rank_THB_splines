@@ -79,13 +79,8 @@ function [TT_K] = assemble_stiffness_level_bsplines_1(H, level, level_ind, cuboi
         knot_area{3} = knot_indices{3}(cuboid_cells{level_ind}.active_cuboids{i_domain}(3):(cuboid_cells{level_ind}.active_cuboids{i_domain}(3) + cuboid_cells{level_ind}.active_cuboids{i_domain}(6)-1));
         H_plus = univariate_gradu_gradv_area_bsplines(H_plus, hspace, level, level_ind, knot_area, cuboid_splines_level);
         for i=1:9 
-            for j = 1:H.stiffness.R(H.stiffness.order(i),1)
-                for k = 1:H.stiffness.R(H.stiffness.order(i),3)
-                    TT_K = round(TT_K + tt_matrix({full(H_plus.stiffness.K{1}{i}{j}); ...
-                        full(H_plus.stiffness.K{2}{i}{k+(j-1)*H.stiffness.R(H.stiffness.order(i),3)}); ...
-                        full(H_plus.stiffness.K{3}{i}{k})}), low_rank_data.rankTol);
-                end
-            end
+            TT_K = TT_K + cell2core(tt_matrix, H_plus.stiffness.K{i});
         end
+        TT_K = round(TT_K, low_rank_data.rankTol);
     end
 end

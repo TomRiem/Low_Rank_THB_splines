@@ -69,26 +69,15 @@ function [TT_M] = assemble_mass_level_bsplines_2(H, level, level_ind, cuboid_cel
     knot_area{2} = knot_indices{2};
     knot_area{3} = knot_indices{3};
     H_all = univariate_u_v_area_bsplines(H_all, hspace, level, level_ind, knot_area, cuboid_splines_level);
-    TT_M = tt_zeros([cuboid_splines_level{level_ind}.tensor_size', cuboid_splines_level{level_ind}.tensor_size']);
-    for i=1:H.mass.R(1)
-        for j = 1:H.mass.R(3)
-            TT_M = round(TT_M + tt_matrix({full(H_all.mass.M{1}{i}); ...
-                    full(H_all.mass.M{2}{i+(j-1)*H.mass.R(1)}); ...
-                    full(H_all.mass.M{3}{j})}), low_rank_data.rankTol);
-        end
-    end
+    TT_M = cell2core(tt_matrix, H_all.mass.M);
+    TT_M = round(TT_M, low_rank_data.rankTol);
     for i_domain = 1:cuboid_cells{level_ind}.n_not_active_cuboids
         H_minus = H;
         knot_area{1} = knot_indices{1}(cuboid_cells{level_ind}.not_active_cuboids{i_domain}(1):(cuboid_cells{level_ind}.not_active_cuboids{i_domain}(1) + cuboid_cells{level_ind}.not_active_cuboids{i_domain}(4)-1));
         knot_area{2} = knot_indices{2}(cuboid_cells{level_ind}.not_active_cuboids{i_domain}(2):(cuboid_cells{level_ind}.not_active_cuboids{i_domain}(2) + cuboid_cells{level_ind}.not_active_cuboids{i_domain}(5)-1));
         knot_area{3} = knot_indices{3}(cuboid_cells{level_ind}.not_active_cuboids{i_domain}(3):(cuboid_cells{level_ind}.not_active_cuboids{i_domain}(3) + cuboid_cells{level_ind}.not_active_cuboids{i_domain}(6)-1));
         H_minus = univariate_u_v_area_bsplines(H_minus, hspace, level, level_ind, knot_area, cuboid_splines_level);
-        for i=1:H.mass.R(1)
-            for j = 1:H.mass.R(3)
-                TT_M = round(TT_M - tt_matrix({full(H_minus.mass.M{1}{i}); ...
-                        full(H_minus.mass.M{2}{i+(j-1)*H.mass.R(1)}); ...
-                        full(H_minus.mass.M{3}{j})}), low_rank_data.rankTol);
-            end
-        end
+        TT_M = TT_M - cell2core(tt_matrix, H_minus.mass.M);
+        TT_M = round(TT_M, low_rank_data.rankTol);
     end
 end

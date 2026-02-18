@@ -72,10 +72,7 @@ function [TT_rhs] = assemble_rhs_level_bsplines_1(H, rhs, level, level_ind, cubo
         knot_area{3} = knot_indices{3}(cuboid_cells{level_ind}.active_cuboids{i_domain}(3):(cuboid_cells{level_ind}.active_cuboids{i_domain}(3) + cuboid_cells{level_ind}.active_cuboids{i_domain}(6)-1));
         rhs_plus = rhs;
         rhs_plus = univariate_f_area_bsplines(rhs_plus, H, hspace, level, level_ind, knot_area, cuboid_splines_level);
-        for j = 1:rhs.R(1)*rhs.R_f(1)
-            for k = 1:rhs.R(3)*rhs.R_f(3)  
-                TT_rhs = round(TT_rhs + tt_tensor_2({rhs_plus.fv{1}{j}; rhs_plus.fv{2}{k + (j-1)*rhs.R(3)*rhs.R_f(3)}; rhs_plus.fv{3}{k}}), low_rank_data.rankTol_f);
-            end
-        end
+        TT_plus = cell2core(tt_tensor, rhs_plus.fv);
+        TT_rhs = round(TT_rhs + TT_plus, low_rank_data.rankTol_f);
     end
 end

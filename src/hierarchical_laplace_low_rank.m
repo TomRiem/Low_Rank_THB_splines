@@ -1,12 +1,12 @@
-function  [geometry, hmsh, hspace, u, solution_data] = adaptivity_laplace_low_rank (problem_data, method_data, adaptivity_data, plot_data, low_rank_data)
-% ADAPTIVITY_LAPLACE_LOW_RANK
+function  [geometry, hmsh, hspace, u, solution_data] = hierarchical_laplace_low_rank (problem_data, method_data, adaptivity_data, plot_data, low_rank_data)
+% hierarchical_laplace_low_rank
 % Adaptive IGA solver for Laplace’s equation using hierarchical spaces and
 % a low-rank (TT) assembly/solve pipeline. Same outer loop as GeoPDEs’
 % adaptivity_laplace, but the system is built/solved by low-rank routines
 % and the solution space is B-splines (geometry may be B-splines or NURBS).
 %
 % [geometry, hmsh, hspace, u, solution_data] = ...
-% ADAPTIVITY_LAPLACE_LOW_RANK(problem_data, method_data, ...
+% hierarchical_laplace_low_rank(problem_data, method_data, ...
 % adaptivity_data, plot_data, low_rank_data)
 %
 % Purpose
@@ -85,7 +85,7 @@ function  [geometry, hmsh, hspace, u, solution_data] = adaptivity_laplace_low_ra
 % (H encodes separated metric/weights; rhs the separated load.)
 % 3) Adaptive loop (k = 1,2,…):
 % SOLVE:
-% [u, ...] = ADAPTIVITY_SOLVE_LAPLACE_LOW_RANK(H, rhs, hmsh, hspace, low_rank_data).
+% [u, ...] = hierarchical_solve_laplace_low_rank(H, rhs, hmsh, hspace, low_rank_data).
 % (Solution space is B-splines; geometry may be B-splines or NURBS—handled in H/rhs.)
 % (Optional) PLOT current mesh/solution.
 % ESTIMATE:
@@ -165,7 +165,7 @@ function  [geometry, hmsh, hspace, u, solution_data] = adaptivity_laplace_low_ra
         disp('SOLVE:')
         fprintf('Number of elements: %d. Total DOFs: %d. Number of levels: %d \n', hmsh.nel, hspace.ndof, hspace.nlevels);
       end
-      [u, ~, ~, ~, ~, ~] = adaptivity_solve_laplace_low_rank(H, rhs, hmsh, hspace, low_rank_data);
+      [u, ~, ~, ~, ~, ~] = hierarchical_solve_laplace_low_rank(H, rhs, hmsh, hspace, low_rank_data);
       nel(iter) = hmsh.nel; ndof(iter) = hspace.ndof;
     
       if (plot_data.plot_hmesh)

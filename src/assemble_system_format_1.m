@@ -93,7 +93,8 @@ function [TT_system, cuboid_splines_system, low_rank_data] = assemble_system_for
     cuboid_splines_system = cell(nlevels, 1);
 
     for i_lev = 1:nlevels
-        cuboid_splines_system{i_lev} = cuboid_detection(hspace.active{level(i_lev)}, hspace.space_of_level(level(i_lev)).ndof_dir, true, false, true, true, true, true);
+        cuboid_splines_system{i_lev} = cuboid_detection(hspace.active{level(i_lev)}, hspace.space_of_level(level(i_lev)).ndof_dir, true, ...
+                false, true, true, true, true);
         TT_system{i_lev, i_lev} = cell(cuboid_splines_system{i_lev}.n_active_cuboids, cuboid_splines_system{i_lev}.n_active_cuboids);
         J{i_lev} = cell(cuboid_splines_system{i_lev}.n_active_cuboids, 1);
         for i_sa = 1:cuboid_splines_system{i_lev}.n_active_cuboids
@@ -108,12 +109,14 @@ function [TT_system, cuboid_splines_system, low_rank_data] = assemble_system_for
             Z = eye(cuboid_splines_level{i_lev}.tensor_size(3));
             Z = Z(:, cuboid_splines_level{i_lev}.shifted_indices{3}(splines_active_indices{3}));
             J{i_lev}{i_sa} = tt_matrix({X; Y; Z});
+            J{i_lev}{i_sa} = tt_matrix({X; Y; Z});
             TT_system{i_lev, i_lev}{i_sa, i_sa} = round(J{i_lev}{i_sa}'*TT_system_all{i_lev, i_lev}*J{i_lev}{i_sa}, low_rank_data.rankTol);
             for j_sa = (i_sa-1):-1:1
                 TT_system{i_lev, i_lev}{j_sa, i_sa} = round(J{i_lev}{j_sa}'*TT_system_all{i_lev, i_lev}*J{i_lev}{i_sa}, low_rank_data.rankTol);
                 TT_system{i_lev, i_lev}{i_sa, j_sa} = TT_system{i_lev, i_lev}{j_sa, i_sa}';
             end
         end
+        TT_system_all{i_lev, i_lev} = [];
         for j_lev = (i_lev-1):-1:1
             TT_system{i_lev, j_lev} = cell(cuboid_splines_system{i_lev}.n_active_cuboids, cuboid_splines_system{j_lev}.n_active_cuboids);
             TT_system{j_lev, i_lev} = cell(cuboid_splines_system{j_lev}.n_active_cuboids, cuboid_splines_system{i_lev}.n_active_cuboids);
@@ -123,6 +126,7 @@ function [TT_system, cuboid_splines_system, low_rank_data] = assemble_system_for
                     TT_system{j_lev, i_lev}{j_sa, i_sa} = TT_system{i_lev, j_lev}{i_sa, j_sa}';
                 end
             end
+            TT_system_all{i_lev, j_lev} = [];
         end
     end
     TT_system = cell_cat(TT_system);

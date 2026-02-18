@@ -14,7 +14,7 @@ function [TT_K, TT_rhs, cuboid_splines_system, precon, low_rank_data] = assemble
 % • each kept level i contributes one monolithic TT block K_{ii} and f_i,
 % • cross-level couplings K_{ij} (i ≠ j) are assembled in TT,
 % • an optional preconditioner is formed (modes 2 or 3),
-% • inactive (deactivated) cuboid DOFs on a level are “pinned” by adding
+% • inactive (deactivated) cuboid DOFs on a level are "pinned" by adding
 % identity TT blocks on those index ranges.
 %
 % It differs from FORMAT_1 in that FORMAT_2 merges all level-local
@@ -36,8 +36,8 @@ function [TT_K, TT_rhs, cuboid_splines_system, precon, low_rank_data] = assemble
 %
 % hspace : struct / object
 % Hierarchical space. Fields used here:
-% .active{l} – active DOF indices on level l (full grid)
-% .space_of_level(l).ndof_dir – [n1,n2,n3] per direction at level l
+% .active{ℓ} – active DOF indices on level ℓ (full grid)
+% .space_of_level(ℓ).ndof_dir – [n1,n2,n3] per direction at level ℓ
 %
 % nlevels : scalar
 % Number of kept levels (length(level)).
@@ -69,14 +69,14 @@ function [TT_K, TT_rhs, cuboid_splines_system, precon, low_rank_data] = assemble
 %
 % cuboid_splines_system: nlevels × 1 cell
 % For each level, the system cuboid partition returned by CUBOID_DETECTION
-% on the level’s DOF grid (with indices, shifted and inverse-shifted maps).
+% on the level's DOF grid (with indices, shifted and inverse-shifted maps).
 % Fields used: .active_cuboids, .n_active_cuboids, .not_active_cuboids,
 % .n_not_active_cuboids, .tensor_size, .indices,
 % .shifted_indices, .inverse_shifted_indices.
 %
 % precon : struct
 % Updated with .P (a per-level TT matrix in modes 2 or 3) and .nlevels.
-% For modes 4/5 this function redirects to the “format 1” path (see below).
+% For modes 4/5 this function redirects to the "format 1" path (see below).
 %
 % How it works
 % ------------
@@ -92,7 +92,7 @@ function [TT_K, TT_rhs, cuboid_splines_system, precon, low_rank_data] = assemble
 % Y = S_y, Z = S_z (analogous for y/z)
 % J{i}{s} = tt_matrix({X; Y; Z})
 % The maps leverage .shifted_indices and .inverse_shifted_indices to go
-% from full -> shrunk and back to the cuboid ranges.
+% from full → shrunk and back to the cuboid ranges.
 %
 % 3) Accumulate the within-level block (one monolithic TT per level):
 % TT_K{i,i} += J{i}{s}' * TT_stiffness_all{i,i} * J{i}{s} (for all s)
@@ -118,7 +118,7 @@ function [TT_K, TT_rhs, cuboid_splines_system, precon, low_rank_data] = assemble
 % then add identity on the deactivated cuboids (as for TT_K{i,i}).
 %
 % 4 or 5 – Delegate to block-by-cuboid format
-% Sets low_rank_data.block_format = 1 and redirects to the “format 1”
+% Sets low_rank_data.block_format = 1 and redirects to the "format 1"
 % assembler (ASSEM…FORMAT_1) to create a cuboid-blocked system/preconditioner.
 % (This branch returns immediately.)
 %
@@ -128,7 +128,7 @@ function [TT_K, TT_rhs, cuboid_splines_system, precon, low_rank_data] = assemble
 % from either B-spline or NURBS processing; this routine merely restricts and
 % aggregates them into level blocks in TT format.
 % • All operator/RHS sums are TT-rounded with tolerances rankTol / rankTol_f.
-% • Adding identity on “not active” cuboids effectively decouples those DOFs
+% • Adding identity on "not active" cuboids effectively decouples those DOFs
 % (e.g., for homogeneous Dirichlet nodes eliminated from the solve).
     TT_K = cell(nlevels, nlevels);
     TT_rhs = cell(nlevels, 1);
@@ -179,9 +179,15 @@ function [TT_K, TT_rhs, cuboid_splines_system, precon, low_rank_data] = assemble
                 J{i_lev} = J{i_lev} + tt_matrix({X; Y; Z});
             end
 
+            J{i_lev} = round(J{i_lev}, 1e-15);
+
             TT_K{i_lev, i_lev} = round(J{i_lev}'*TT_stiffness_all{i_lev, i_lev}, low_rank_data.rankTol);
+            TT_stiffness_all{i_lev, i_lev} = [];
             TT_K{i_lev, i_lev} = round(TT_K{i_lev, i_lev}*J{i_lev}, low_rank_data.rankTol);
             TT_rhs{i_lev} = round(J{i_lev}'*TT_rhs_all{i_lev}, low_rank_data.rankTol_f);
+            precon.P{i_lev} = diag(diag(TT_K{i_lev,i_lev}));
+
+            N = tt_zeros(size(TT_K{i_lev,i_lev}));
 
             for i_deact = 1:cuboid_splines_system{i_lev}.n_not_active_cuboids
                 x_cor = cuboid_splines_system{i_lev}.not_active_cuboids{i_deact}(1):(cuboid_splines_system{i_lev}.not_active_cuboids{i_deact}(1) + cuboid_splines_system{i_lev}.not_active_cuboids{i_deact}(4) - 1);
@@ -190,23 +196,19 @@ function [TT_K, TT_rhs, cuboid_splines_system, precon, low_rank_data] = assemble
                 X = sparse(x_cor, x_cor, 1, cuboid_splines_system{i_lev}.tensor_size(1), cuboid_splines_system{i_lev}.tensor_size(1));
                 Y = sparse(y_cor, y_cor, 1, cuboid_splines_system{i_lev}.tensor_size(2), cuboid_splines_system{i_lev}.tensor_size(2));
                 Z = sparse(z_cor, z_cor, 1, cuboid_splines_system{i_lev}.tensor_size(3), cuboid_splines_system{i_lev}.tensor_size(3));
-                TT_K{i_lev,i_lev} = TT_K{i_lev,i_lev} + tt_matrix({X; Y; Z});
+                N = N + tt_matrix({X; Y; Z});
             end
 
-            precon.P{i_lev} = tt_zeros([cuboid_splines_system{i_lev}.tensor_size', cuboid_splines_system{i_lev}.tensor_size']);
-            tt_ranks = TT_K{i_lev, i_lev}.r;
+            N = round(N, 1e-15);
+            TT_K{i_lev,i_lev} = TT_K{i_lev,i_lev} + N;
+            TT_K{i_lev,i_lev} = round(TT_K{i_lev,i_lev}, 1e-15);
+            precon.P{i_lev} = precon.P{i_lev} + N;
+            precon.P{i_lev} = round(precon.P{i_lev}, 1e-15);
 
-            for r_1 = 1:tt_ranks(2)
-                for r_2 = 1:tt_ranks(3)
-                    precon.P{i_lev} = round(precon.P{i_lev} + ...
-                        tt_matrix({diag(diag(reshape(TT_K{i_lev, i_lev}{1}(1, :, :, r_1), [TT_K{i_lev, i_lev}.n(1), TT_K{i_lev, i_lev}.m(1)]))); ...
-                        diag(diag(reshape(TT_K{i_lev, i_lev}{2}(r_1, :, :, r_2), [TT_K{i_lev, i_lev}.n(2), TT_K{i_lev, i_lev}.m(2)]))); ...
-                        diag(diag(reshape(TT_K{i_lev, i_lev}{3}(r_2, :, :, 1), [TT_K{i_lev, i_lev}.n(3), TT_K{i_lev, i_lev}.m(3)])))}), low_rank_data.rankTol);
-                end
-            end
 
             for j_lev = (i_lev-1):-1:1
                 TT_K{i_lev, j_lev} = round(J{i_lev}'*TT_stiffness_all{i_lev, j_lev}, low_rank_data.rankTol);
+                TT_stiffness_all{i_lev, j_lev} = [];
                 TT_K{i_lev, j_lev} = round(TT_K{i_lev, j_lev}*J{j_lev}, low_rank_data.rankTol);
                 TT_K{j_lev, i_lev} = TT_K{i_lev, j_lev}';
             end
@@ -240,11 +242,16 @@ function [TT_K, TT_rhs, cuboid_splines_system, precon, low_rank_data] = assemble
                 J{i_lev} = J{i_lev} + tt_matrix({X; Y; Z});
             end
 
+            J{i_lev} = round(J{i_lev}, 1e-15);
+
             TT_K{i_lev, i_lev} = round(J{i_lev}'*TT_stiffness_all{i_lev, i_lev}, low_rank_data.rankTol);
+            TT_stiffness_all{i_lev, i_lev} = [];
             TT_K{i_lev, i_lev} = round(TT_K{i_lev, i_lev}*J{i_lev}, low_rank_data.rankTol);
             precon.P{i_lev} = round(J{i_lev}'*precon.K{i_lev}, low_rank_data.rankTol);
             precon.P{i_lev} = round(precon.P{i_lev}*J{i_lev}, low_rank_data.rankTol);
             TT_rhs{i_lev} = round(J{i_lev}'*TT_rhs_all{i_lev}, low_rank_data.rankTol_f);
+
+            N = tt_zeros(size(TT_K{i_lev,i_lev}));
 
             for i_deact = 1:cuboid_splines_system{i_lev}.n_not_active_cuboids
                 x_cor = cuboid_splines_system{i_lev}.not_active_cuboids{i_deact}(1):(cuboid_splines_system{i_lev}.not_active_cuboids{i_deact}(1) + cuboid_splines_system{i_lev}.not_active_cuboids{i_deact}(4) - 1);
@@ -253,11 +260,18 @@ function [TT_K, TT_rhs, cuboid_splines_system, precon, low_rank_data] = assemble
                 X = sparse(x_cor, x_cor, 1, cuboid_splines_system{i_lev}.tensor_size(1), cuboid_splines_system{i_lev}.tensor_size(1));
                 Y = sparse(y_cor, y_cor, 1, cuboid_splines_system{i_lev}.tensor_size(2), cuboid_splines_system{i_lev}.tensor_size(2));
                 Z = sparse(z_cor, z_cor, 1, cuboid_splines_system{i_lev}.tensor_size(3), cuboid_splines_system{i_lev}.tensor_size(3));
-                TT_K{i_lev,i_lev} = TT_K{i_lev,i_lev} + tt_matrix({X; Y; Z});
-                precon.P{i_lev} = precon.P{i_lev} + tt_matrix({X; Y; Z});
+                N = N + tt_matrix({X; Y; Z});
             end
+
+            N = round(N, 1e-15);
+            TT_K{i_lev,i_lev} = TT_K{i_lev,i_lev} + N;
+            TT_K{i_lev,i_lev} = round(TT_K{i_lev,i_lev}, 1e-15);
+            precon.P{i_lev} = precon.P{i_lev} + N;
+            precon.P{i_lev} = round(precon.P{i_lev}, 1e-15);
+            
             for j_lev = (i_lev-1):-1:1
                 TT_K{i_lev, j_lev} = round(J{i_lev}'*TT_stiffness_all{i_lev, j_lev}, low_rank_data.rankTol);
+                TT_stiffness_all{i_lev, j_lev} = [];
                 TT_K{i_lev, j_lev} = round(TT_K{i_lev, j_lev}*J{j_lev}, low_rank_data.rankTol);
                 TT_K{j_lev, i_lev} = TT_K{i_lev, j_lev}';
             end
@@ -290,9 +304,14 @@ function [TT_K, TT_rhs, cuboid_splines_system, precon, low_rank_data] = assemble
                 J{i_lev} = J{i_lev} + tt_matrix({X; Y; Z});
             end
 
+            J{i_lev} = round(J{i_lev}, 1e-15);
+
             TT_K{i_lev, i_lev} = round(J{i_lev}'*TT_stiffness_all{i_lev, i_lev}, low_rank_data.rankTol);
+            TT_stiffness_all{i_lev, i_lev} = [];
             TT_K{i_lev, i_lev} = round(TT_K{i_lev, i_lev}*J{i_lev}, low_rank_data.rankTol);
             TT_rhs{i_lev} = round(J{i_lev}'*TT_rhs_all{i_lev}, low_rank_data.rankTol_f);
+
+            N = tt_zeros(size(TT_K{i_lev,i_lev}));
 
             for i_deact = 1:cuboid_splines_system{i_lev}.n_not_active_cuboids
                 x_cor = cuboid_splines_system{i_lev}.not_active_cuboids{i_deact}(1):(cuboid_splines_system{i_lev}.not_active_cuboids{i_deact}(1) + cuboid_splines_system{i_lev}.not_active_cuboids{i_deact}(4) - 1);
@@ -301,11 +320,18 @@ function [TT_K, TT_rhs, cuboid_splines_system, precon, low_rank_data] = assemble
                 X = sparse(x_cor, x_cor, 1, cuboid_splines_system{i_lev}.tensor_size(1), cuboid_splines_system{i_lev}.tensor_size(1));
                 Y = sparse(y_cor, y_cor, 1, cuboid_splines_system{i_lev}.tensor_size(2), cuboid_splines_system{i_lev}.tensor_size(2));
                 Z = sparse(z_cor, z_cor, 1, cuboid_splines_system{i_lev}.tensor_size(3), cuboid_splines_system{i_lev}.tensor_size(3));
-                TT_K{i_lev,i_lev} = TT_K{i_lev,i_lev} + tt_matrix({X; Y; Z});
-
+                N = N + tt_matrix({X; Y; Z});
             end
+
+            N = round(N, 1e-15);
+
+            TT_K{i_lev,i_lev} = TT_K{i_lev,i_lev} + N;
+
+            TT_K{i_lev,i_lev} = round(TT_K{i_lev,i_lev}, 1e-15);
+
             for j_lev = (i_lev-1):-1:1
                 TT_K{i_lev, j_lev} = round(J{i_lev}'*TT_stiffness_all{i_lev, j_lev}, low_rank_data.rankTol);
+                TT_stiffness_all{i_lev, j_lev} = [];
                 TT_K{i_lev, j_lev} = round(TT_K{i_lev, j_lev}*J{j_lev}, low_rank_data.rankTol);
                 TT_K{j_lev, i_lev} = TT_K{i_lev, j_lev}';
             end

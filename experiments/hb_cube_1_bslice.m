@@ -41,14 +41,14 @@
 % 2) Build low-rank ingredients & RHS:
 %      low_rank_data.mass = 0; low_rank_data.stiffness = 1;
 %      low_rank_data.TT_interpolation = 1; rhs_nsub = [25 25 25];
-%      [H, rhs, t_int] = ADAPTIVITY_INTERPOLATION_SYSTEM_RHS(geometry, low_rank_data, problem_data);
+%      [H, rhs, t_int] = interpolation_system_RHS(geometry, low_rank_data, problem_data);
 %    H contains separated metric factors for stiffness; rhs is the TT-RHS.
 %
 % 3) Solve in TT with block-format 1 and preconditioners:
 %      For preconditioner in {2, 4}:
 %        low_rank_data.block_format = 1;
 %        low_rank_data.preconditioner = precond_id;
-%        [u, u_tt, TT_K, TT_rhs, t_lr, td] = ADAPTIVITY_SOLVE_LAPLACE_LOW_RANK(H, rhs, hmsh, hspace, low_rank_data);
+%        [u, u_tt, TT_K, TT_rhs, t_lr, td] = hierarchical_solve_laplace_low_rank(H, rhs, hmsh, hspace, low_rank_data);
 %    – TT_K, TT_rhs: low-rank stiffness and RHS (block layout = active cuboids).
 %    – u_tt: TT solution; u: physical vector (assembled when full_solution=1).
 %    – td: solver diagnostics (e.g., GMRES iterations/residuals).
@@ -90,7 +90,7 @@
 % • This script evaluates the **HB** variant (no truncation). For the THB
 %   counterpart see the Figure 10 THB low-rank script.
 % • Preconditioner IDs {2,4} refer to the solver’s internal variants used by
-%   SOLVE_LINEAR_SYSTEM/ADAPTIVITY_SOLVE_LAPLACE_LOW_RANK.
+%   SOLVE_LINEAR_SYSTEM/hierarchical_solve_laplace_low_rank.
 % • Memory is reported on TT objects (not the hypothetical full matrices).
 % • Ensure 'geo_cube.txt' is on the path and GeoPDEs/TT-Toolbox utilities are available.
 
@@ -134,7 +134,7 @@ clear method_data
 
 clear low_rank_data  
 low_rank_data.refinement = 1;     
-low_rank_data.discardFull = 1;    
+low_rank_data.discardFull = 0;    
 low_rank_data.plotW =  0;         
 low_rank_data.lowRank = 1;        
 low_rank_data.mass = 0;           
@@ -221,14 +221,14 @@ for i_deg = 1:degrees_n
             low_rank_data.sol_tol = tol(i_tol);
             low_rank_data.rankTol = low_rank_data.sol_tol.*1e-2;
             low_rank_data.rankTol_f = low_rank_data.sol_tol.*1e-2;
-            [H, rhs, t_int] = adaptivity_interpolation_system_rhs(geometry, low_rank_data, problem_data);
+            [H, rhs, t_int] = interpolation_system_rhs(geometry, low_rank_data, problem_data);
             results_1.time_interpolation{i_deg, i_tol} = [results_1.time_interpolation{i_deg, i_tol}, t_int];
 
     
             for i_p = 1:preconditioners_1_n(i_deg)
                 low_rank_data.block_format = 1;
                 low_rank_data.preconditioner = preconditioners_1{i_deg}(i_p);
-                [u, u_tt, TT_K, TT_rhs, t_lr, td] = adaptivity_solve_laplace_low_rank(H, rhs, hmsh, hspace, low_rank_data);
+                [u, u_tt, TT_K, TT_rhs, t_lr, td] = hierarchical_solve_laplace_low_rank(H, rhs, hmsh, hspace, low_rank_data);
                 results_1.time_solve{i_deg, i_tol, i_p} = [results_1.time_solve{i_deg, i_tol, i_p}, t_lr];
                 results_1.memory_K{i_deg, i_tol, i_p} = [results_1.memory_K{i_deg, i_tol, i_p}, RecursiveSize(TT_K)];
                 results_1.memory_rhs{i_deg, i_tol, i_p} = [results_1.memory_rhs{i_deg, i_tol, i_p}, RecursiveSize(TT_rhs)];

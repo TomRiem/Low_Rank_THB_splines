@@ -99,7 +99,7 @@ function [TT_M, M_full, low_rank_data, time] = assemble_mass_low_rank(H, hmsh, h
     end
     level(l_d) = [];
     nlevels = numel(level);
-    TT_M_all = cell(nlevels, nlevels);
+    TT_M = cell(nlevels, nlevels);
     C = cell(nlevels-1, 1);
     cuboid_splines_level = cell(nlevels, 1);
     cuboid_cells = cell(nlevels, 1);
@@ -114,31 +114,33 @@ function [TT_M, M_full, low_rank_data, time] = assemble_mass_low_rank(H, hmsh, h
                     true, false, true, true, false);
                 if (cuboid_cells{i_lev}.n_active_cuboids <= cuboid_cells{i_lev}.n_not_active_cuboids + 1 && ...
                         cuboid_cells{i_lev}.n_active_cuboids ~= 0) || cuboid_cells{i_lev}.n_not_active_cuboids == 0
-                    [TT_M_all{i_lev,i_lev}] = assemble_mass_level_bsplines_1(H, level(i_lev), i_lev, ...
+                    [TT_M{i_lev,i_lev}] = assemble_mass_level_bsplines_1(H, level(i_lev), i_lev, ...
                         cuboid_cells, cuboid_splines_level, hspace, hmsh, low_rank_data);
                 else
-                    [TT_M_all{i_lev,i_lev}] = assemble_mass_level_bsplines_2(H, level(i_lev), i_lev, ...
+                    [TT_M{i_lev,i_lev}] = assemble_mass_level_bsplines_2(H, level(i_lev), i_lev, ...
                         cuboid_cells, cuboid_splines_level, hspace, hmsh, low_rank_data);
                 end
                 if level(i_lev) > 1 && i_lev > 1
                     C{i_lev-1} = basis_change_bsplines_truncated(level, i_lev, hspace, cuboid_splines_level, low_rank_data);
                 end
-                CT_M_C = TT_M_all{i_lev,i_lev};
-                M_C = TT_M_all{i_lev,i_lev};
+                CT_M_C = TT_M{i_lev,i_lev};
+                M_C = TT_M{i_lev,i_lev};
                 for j_lev = (i_lev-1):-1:1
                     CT_M_C = round(C{j_lev}' * CT_M_C * C{j_lev}, low_rank_data.rankTol);
                     M_C = round(M_C * C{j_lev}, low_rank_data.rankTol);
-                    TT_M_all{j_lev,j_lev} = round(TT_M_all{j_lev,j_lev} + ...
+                    TT_M{j_lev,j_lev} = round(TT_M{j_lev,j_lev} + ...
                         CT_M_C, low_rank_data.rankTol);
-                    TT_M_all{i_lev,j_lev} = M_C;
-                    TT_M_all_tmp = TT_M_all{i_lev,j_lev};
+                    TT_M{i_lev,j_lev} = M_C;
+                    TT_M_tmp = TT_M{i_lev,j_lev};
                     for k_lev = (i_lev-1):-1:(j_lev+1)
-                        TT_M_all_tmp = round(C{k_lev}'*TT_M_all_tmp, low_rank_data.rankTol);
-                        TT_M_all{k_lev, j_lev} = round(TT_M_all{k_lev, j_lev} + ...
-                            TT_M_all_tmp, low_rank_data.rankTol);
+                        TT_M_tmp = round(C{k_lev}'*TT_M_tmp, low_rank_data.rankTol);
+                        TT_M{k_lev, j_lev} = round(TT_M{k_lev, j_lev} + ...
+                            TT_M_tmp, low_rank_data.rankTol);
                     end
                 end
+                clear CT_M_C M_C TT_M_tmp
             end
+            clear C
         else
             for i_lev = 1:nlevels
                 splines_on_active_cell = sp_get_basis_functions(hspace.space_of_level(level(i_lev)), ...
@@ -149,31 +151,33 @@ function [TT_M, M_full, low_rank_data, time] = assemble_mass_low_rank(H, hmsh, h
                     true, false, true, true, false);
                 if (cuboid_cells{i_lev}.n_active_cuboids <= cuboid_cells{i_lev}.n_not_active_cuboids + 1 && ...
                         cuboid_cells{i_lev}.n_active_cuboids ~= 0) || cuboid_cells{i_lev}.n_not_active_cuboids == 0
-                    [TT_M_all{i_lev,i_lev}] = assemble_mass_level_bsplines_1(H, level(i_lev), i_lev, ...
+                    [TT_M{i_lev,i_lev}] = assemble_mass_level_bsplines_1(H, level(i_lev), i_lev, ...
                         cuboid_cells, cuboid_splines_level, hspace, hmsh, low_rank_data);
                 else
-                    [TT_M_all{i_lev,i_lev}] = assemble_mass_level_bsplines_2(H, level(i_lev), i_lev, ...
+                    [TT_M{i_lev,i_lev}] = assemble_mass_level_bsplines_2(H, level(i_lev), i_lev, ...
                         cuboid_cells, cuboid_splines_level, hspace, hmsh, low_rank_data);
                 end
                 if level(i_lev) > 1 && i_lev > 1
                     C{i_lev-1} = basis_change_bsplines(level, i_lev, hspace, cuboid_splines_level, low_rank_data);
                 end
-                CT_M_C = TT_M_all{i_lev,i_lev};
-                M_C = TT_M_all{i_lev,i_lev};
+                CT_M_C = TT_M{i_lev,i_lev};
+                M_C = TT_M{i_lev,i_lev};
                 for j_lev = (i_lev-1):-1:1
                     CT_M_C = round(C{j_lev}' * CT_M_C * C{j_lev}, low_rank_data.rankTol);
                     M_C = round(M_C * C{j_lev}, low_rank_data.rankTol);
-                    TT_M_all{j_lev,j_lev} = round(TT_M_all{j_lev,j_lev} + ...
+                    TT_M{j_lev,j_lev} = round(TT_M{j_lev,j_lev} + ...
                         CT_M_C, low_rank_data.rankTol);
-                    TT_M_all{i_lev,j_lev} = M_C;
-                    TT_M_all_tmp = TT_M_all{i_lev,j_lev};
+                    TT_M{i_lev,j_lev} = M_C;
+                    TT_M_tmp = TT_M{i_lev,j_lev};
                     for k_lev = (i_lev-1):-1:(j_lev+1)
-                        TT_M_all_tmp = round(C{k_lev}'*TT_M_all_tmp, low_rank_data.rankTol);
-                        TT_M_all{k_lev, j_lev} = round(TT_M_all{k_lev, j_lev} + ...
-                            TT_M_all_tmp, low_rank_data.rankTol);
+                        TT_M_tmp = round(C{k_lev}'*TT_M_tmp, low_rank_data.rankTol);
+                        TT_M{k_lev, j_lev} = round(TT_M{k_lev, j_lev} + ...
+                            TT_M_tmp, low_rank_data.rankTol);
                     end
                 end
+                clear CT_M_C M_C TT_M_tmp
             end
+            clear C
         end
     else
         Tweights = cell(nlevels, 1);
@@ -189,31 +193,33 @@ function [TT_M, M_full, low_rank_data, time] = assemble_mass_low_rank(H, hmsh, h
                     true, false, true, true, false);
                 if (cuboid_cells{i_lev}.n_active_cuboids <= cuboid_cells{i_lev}.n_not_active_cuboids + 1 && ...
                         cuboid_cells{i_lev}.n_active_cuboids ~= 0) || cuboid_cells{i_lev}.n_not_active_cuboids == 0
-                    [TT_M_all{i_lev,i_lev}] = assemble_mass_level_nurbs_1(H, Tweights, level(i_lev), i_lev, ...
+                    [TT_M{i_lev,i_lev}] = assemble_mass_level_nurbs_1(H, Tweights, level(i_lev), i_lev, ...
                         cuboid_cells, cuboid_splines_level, hspace, hmsh, low_rank_data);
                 else
-                    [TT_M_all{i_lev,i_lev}] = assemble_mass_level_nurbs_2(H, Tweights, level(i_lev), i_lev, ...
+                    [TT_M{i_lev,i_lev}] = assemble_mass_level_nurbs_2(H, Tweights, level(i_lev), i_lev, ...
                         cuboid_cells, cuboid_splines_level, hspace, hmsh, low_rank_data);
                 end
                 if level(i_lev) > 1 && i_lev > 1
                     C{i_lev-1} = basis_change_nurbs_truncated(Tweights, level, i_lev, hspace, cuboid_splines_level, low_rank_data);
                 end
-                CT_M_C = TT_M_all{i_lev,i_lev};
-                M_C = TT_M_all{i_lev,i_lev};
+                CT_M_C = TT_M{i_lev,i_lev};
+                M_C = TT_M{i_lev,i_lev};
                 for j_lev = (i_lev-1):-1:1
                     CT_M_C = round(C{j_lev}' * CT_M_C * C{j_lev}, low_rank_data.rankTol);
                     M_C = round(M_C * C{j_lev}, low_rank_data.rankTol);
-                    TT_M_all{j_lev,j_lev} = round(TT_M_all{j_lev,j_lev} + ...
+                    TT_M{j_lev,j_lev} = round(TT_M{j_lev,j_lev} + ...
                         CT_M_C, low_rank_data.rankTol);
-                    TT_M_all{i_lev,j_lev} = M_C;
-                    TT_M_all_tmp = TT_M_all{i_lev,j_lev};
+                    TT_M{i_lev,j_lev} = M_C;
+                    TT_M_tmp = TT_M{i_lev,j_lev};
                     for k_lev = (i_lev-1):-1:(j_lev+1)
-                        TT_M_all_tmp = round(C{k_lev}'*TT_M_all_tmp, low_rank_data.rankTol);
-                        TT_M_all{k_lev, j_lev} = round(TT_M_all{k_lev, j_lev} + ...
-                            TT_M_all_tmp, low_rank_data.rankTol);
+                        TT_M_tmp = round(C{k_lev}'*TT_M_tmp, low_rank_data.rankTol);
+                        TT_M{k_lev, j_lev} = round(TT_M{k_lev, j_lev} + ...
+                            TT_M_tmp, low_rank_data.rankTol);
                     end
                 end
+                clear CT_M_C M_C TT_M_tmp
             end
+            clear C
         else
             for i_lev = 1:nlevels
                 weights = reshape(hspace.space_of_level(level(i_lev)).weights, hspace.space_of_level(level(i_lev)).ndof_dir);
@@ -226,37 +232,39 @@ function [TT_M, M_full, low_rank_data, time] = assemble_mass_low_rank(H, hmsh, h
                     true, false, true, true, false);
                 if (cuboid_cells{i_lev}.n_active_cuboids <= cuboid_cells{i_lev}.n_not_active_cuboids + 1 && ...
                         cuboid_cells{i_lev}.n_active_cuboids ~= 0) || cuboid_cells{i_lev}.n_not_active_cuboids == 0
-                    [TT_M_all{i_lev,i_lev}] = assemble_mass_level_nurbs_1(H, Tweights, level(i_lev), i_lev, ...
+                    [TT_M{i_lev,i_lev}] = assemble_mass_level_nurbs_1(H, Tweights, level(i_lev), i_lev, ...
                         cuboid_cells, cuboid_splines_level, hspace, hmsh, low_rank_data);
                 else
-                    [TT_M_all{i_lev,i_lev}] = assemble_mass_level_nurbs_2(H, Tweights, level(i_lev), i_lev, ...
+                    [TT_M{i_lev,i_lev}] = assemble_mass_level_nurbs_2(H, Tweights, level(i_lev), i_lev, ...
                         cuboid_cells, cuboid_splines_level, hspace, hmsh, low_rank_data);
                 end
                 if level(i_lev) > 1 && i_lev > 1
                     C{i_lev-1} = basis_change_nurbs(Tweights, level, i_lev, hspace, cuboid_splines_level, low_rank_data);
                 end
-                CT_M_C = TT_M_all{i_lev,i_lev};
-                M_C = TT_M_all{i_lev,i_lev};
+                CT_M_C = TT_M{i_lev,i_lev};
+                M_C = TT_M{i_lev,i_lev};
                 for j_lev = (i_lev-1):-1:1
                     CT_M_C = round(C{j_lev}' * CT_M_C * C{j_lev}, low_rank_data.rankTol);
                     M_C = round(M_C * C{j_lev}, low_rank_data.rankTol);
-                    TT_M_all{j_lev,j_lev} = round(TT_M_all{j_lev,j_lev} + ...
+                    TT_M{j_lev,j_lev} = round(TT_M{j_lev,j_lev} + ...
                         CT_M_C, low_rank_data.rankTol);
-                    TT_M_all{i_lev,j_lev} = M_C;
-                    TT_M_all_tmp = TT_M_all{i_lev,j_lev};
+                    TT_M{i_lev,j_lev} = M_C;
+                    TT_M_tmp = TT_M{i_lev,j_lev};
                     for k_lev = (i_lev-1):-1:(j_lev+1)
-                        TT_M_all_tmp = round(C{k_lev}'*TT_M_all_tmp, low_rank_data.rankTol);
-                        TT_M_all{k_lev, j_lev} = round(TT_M_all{k_lev, j_lev} + ...
-                            TT_M_all_tmp, low_rank_data.rankTol);
+                        TT_M_tmp = round(C{k_lev}'*TT_M_tmp, low_rank_data.rankTol);
+                        TT_M{k_lev, j_lev} = round(TT_M{k_lev, j_lev} + ...
+                            TT_M_tmp, low_rank_data.rankTol);
                     end
                 end
+                clear CT_M_C M_C TT_M_tmp
             end
+            clear C
         end
     end
     if isfield(low_rank_data,'block_format') && all(low_rank_data.block_format == 1)
-        [TT_M, cuboid_splines_system, low_rank_data] = assemble_system_format_1(TT_M_all, level, hspace, nlevels, cuboid_splines_level, low_rank_data);
+        [TT_M, cuboid_splines_system, low_rank_data] = assemble_system_format_1(TT_M, level, hspace, nlevels, cuboid_splines_level, low_rank_data);
     else
-        [TT_M, cuboid_splines_system, low_rank_data] = assemble_system_format_2(TT_M_all, level, hspace, nlevels, cuboid_splines_level, low_rank_data);
+        [TT_M, cuboid_splines_system, low_rank_data] = assemble_system_format_2(TT_M, level, hspace, nlevels, cuboid_splines_level, low_rank_data);
     end
     time = toc(time);
     

@@ -64,12 +64,7 @@ function [TT_M] = assemble_mass_level_bsplines_1(H, level, level_ind, cuboid_cel
         knot_area{2} = knot_indices{2}(cuboid_cells{level_ind}.active_cuboids{i_domain}(2):(cuboid_cells{level_ind}.active_cuboids{i_domain}(2) + cuboid_cells{level_ind}.active_cuboids{i_domain}(5)-1));
         knot_area{3} = knot_indices{3}(cuboid_cells{level_ind}.active_cuboids{i_domain}(3):(cuboid_cells{level_ind}.active_cuboids{i_domain}(3) + cuboid_cells{level_ind}.active_cuboids{i_domain}(6)-1));
         H_plus = univariate_u_v_area_bsplines(H_plus, hspace, level, level_ind, knot_area, cuboid_splines_level);
-        for i=1:H.mass.R(1)
-            for j = 1:H.mass.R(3)
-                TT_M = round(TT_M + tt_matrix({full(H_plus.mass.M{1}{i}); ...
-                        full(H_plus.mass.M{2}{i+(j-1)*H.mass.R(1)}); ...
-                        full(H_plus.mass.M{3}{j})}), low_rank_data.rankTol);
-            end
-        end
+        TT_M = TT_M + cell2core(tt_matrix, H_plus.mass.M);
+        TT_M = round(TT_M, low_rank_data.rankTol);
     end
 end

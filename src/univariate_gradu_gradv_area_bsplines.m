@@ -71,127 +71,306 @@ function H = univariate_gradu_gradv_area_bsplines(H, hspace, level, level_ind, k
 %     for each direction; symmetry of Q is handled later when combining directions.
 
 
+
     s = [-0.906179845938664, -0.538469310105683, 0, 0.538469310105683, 0.906179845938664];
-    w = [0.236926885056189, 0.478628670499366, 0.568888888888889, 0.478628670499366, 0.236926885056189]';
-    H.stiffness.K = cell(3,1);
-    for dim = 1:3
-        H.stiffness.K{dim} = cell(9,1);
-        for i = 1:9
-            H.stiffness.K{dim}{i} = cell(H.stiffness.R(H.stiffness.order(i),dim),1);
-            H.stiffness.K{dim}{i}(:) = {sparse(cuboid_splines_level{level_ind}.tensor_size(dim), ...
-                cuboid_splines_level{level_ind}.tensor_size(dim))};
+    w = [0.236926885056189, 0.478628670499366, 0.568888888888889, 0.478628670499366, 0.236926885056189]'; 
+
+
+    comp_of_block = [1,2,3,2,4,5,3,5,6];
+
+
+    H.stiffness.K = cell(9,1);
+    for block = 1:9
+        c = comp_of_block(block);
+        WTT = H.stiffness.weightMat{c};
+        if isempty(WTT), continue; end
+        r = WTT.r;                       
+        n1 = cuboid_splines_level{level_ind}.tensor_size(1);
+        n2 = cuboid_splines_level{level_ind}.tensor_size(2);
+        n3 = cuboid_splines_level{level_ind}.tensor_size(3);
+
+        H.stiffness.K{block} = cell(3,1);
+        H.stiffness.K{block}{1} = zeros(1,  n1, n1, r(2));   
+        H.stiffness.K{block}{2} = zeros(r(2), n2, n2, r(3)); 
+        H.stiffness.K{block}{3} = zeros(r(3), n3, n3);       
+    end
+
+
+    core_w = cell(6,1);
+    for c = 1:6
+        if ~isempty(H.stiffness.weightMat{c})
+            core_w{c} = core2cell(H.stiffness.weightMat{c});   
         end
-        for l = knot_area{dim}
-            a = hspace.space_of_level(level).knots{dim}(l);
-            b = hspace.space_of_level(level).knots{dim}(l+1);
-            xx = (b-a)/2*s + (a+b)/2;
-            quadValues = evalBSpline(hspace.space_of_level(level).knots{dim}, hspace.space_of_level(level).degree(dim), xx);
-            quadValues2 = evalBSpline(H.weightFun.knots{dim}, H.weightFun.degree(dim), xx);
-            quadValuesDeriv = evalBSplineDeriv(hspace.space_of_level(level).knots{dim}, hspace.space_of_level(level).degree(dim), xx);
-            if dim == 1
-                for i = l-hspace.space_of_level(level).degree(dim):l
-                    for j = l-hspace.space_of_level(level).degree(dim):l
-                        for r = 1:H.stiffness.R(1,dim)
-                            H.stiffness.K{dim}{1}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  = ...
-                                H.stiffness.K{dim}{1}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  + ((b-a)/2)*sum(w.*quadValuesDeriv(i,:)'.*quadValuesDeriv(j,:)'.*quadValues2'*H.stiffness.SVDU{1}{dim}(:,r));
-                        end
-                        for r = 1:H.stiffness.R(2,dim)
-                            H.stiffness.K{dim}{2}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  = ...
-                                H.stiffness.K{dim}{2}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  + ((b-a)/2)*sum(w.*quadValues(i,:)'.*quadValuesDeriv(j,:)'.*quadValues2'*H.stiffness.SVDU{2}{dim}(:,r));
-                            H.stiffness.K{dim}{4}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  = ...
-                                H.stiffness.K{dim}{4}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  + ((b-a)/2)*sum(w.*quadValuesDeriv(i,:)'.*quadValues(j,:)'.*quadValues2'*H.stiffness.SVDU{2}{dim}(:,r));
-                        end
-                        for r = 1:H.stiffness.R(3,dim)
-                            H.stiffness.K{dim}{3}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  = ...
-                                H.stiffness.K{dim}{3}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  + ((b-a)/2)*sum(w.*quadValues(i,:)'.*quadValuesDeriv(j,:)'.*quadValues2'*H.stiffness.SVDU{3}{dim}(:,r));
-                            H.stiffness.K{dim}{7}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  = ...
-                                H.stiffness.K{dim}{7}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  + ((b-a)/2)*sum(w.*quadValuesDeriv(i,:)'.*quadValues(j,:)'.*quadValues2'*H.stiffness.SVDU{3}{dim}(:,r));
-                        end
-                        for r = 1:H.stiffness.R(4,dim)
-                            H.stiffness.K{dim}{5}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  = ...
-                                H.stiffness.K{dim}{5}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  + ((b-a)/2)*sum(w.*quadValues(i,:)'.*quadValues(j,:)'.*quadValues2'*H.stiffness.SVDU{4}{dim}(:,r));
-                        end
-                        for r = 1:H.stiffness.R(5,dim)
-                            H.stiffness.K{dim}{6}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  = ...
-                                H.stiffness.K{dim}{6}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  + ((b-a)/2)*sum(w.*quadValues(i,:)'.*quadValues(j,:)'.*quadValues2'*H.stiffness.SVDU{5}{dim}(:,r));
-                            H.stiffness.K{dim}{8}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  = ...
-                                H.stiffness.K{dim}{8}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  + ((b-a)/2)*sum(w.*quadValues(i,:)'.*quadValues(j,:)'.*quadValues2'*H.stiffness.SVDU{5}{dim}(:,r));
-                        end
-                        for r = 1:H.stiffness.R(6,dim)
-                            H.stiffness.K{dim}{9}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  = ...
-                                H.stiffness.K{dim}{9}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  + ((b-a)/2)*sum(w.*quadValues(i,:)'.*quadValues(j,:)'.*quadValues2'*H.stiffness.SVDU{6}{dim}(:,r));
-                        end
-                    end
+    end
+
+
+    d = 1;
+    deg = hspace.space_of_level(level).degree(d);
+    kts = hspace.space_of_level(level).knots{d};
+
+    for l = knot_area{d}
+        a = kts(l); b = kts(l+1);
+        xx = (b-a)/2*s + (a+b)/2;  J = (b-a)/2;
+
+        N    = evalBSpline(      kts, deg, xx);        
+        dN   = evalBSplineDeriv( kts, deg, xx);   
+        Wd   = evalBSpline(H.weightFun.knots{d}, H.weightFun.degree(d), xx);
+
+
+        A = cell(6,1); RL = zeros(6,1); RR = zeros(6,1);
+        for c = 1:6
+            if isempty(core_w{c}), continue; end
+            rL = size(core_w{c}{d},1); rR = size(core_w{c}{d},3);
+            C  = reshape(permute(core_w{c}{d}, [2 3 1]), [], rR*rL); 
+            A{c} = Wd.' * C;                                      
+            RL(c) = rL; RR(c) = rR;                           
+        end
+
+        isup = (l-deg):l; jsup = isup;
+        iloc = cuboid_splines_level{level_ind}.shifted_indices{d}(isup);
+        jloc = cuboid_splines_level{level_ind}.shifted_indices{d}(jsup);
+
+        Nqi   = N(isup,:).';    dNqi = dN(isup,:).';    
+        Nqj   = N(jsup,:).';    dNqj = dN(jsup,:).';
+        basew = J .* w;         k   = numel(isup);
+
+        for ii = 1:k
+            gi  = basew .* Nqi(:,ii);
+            gdi = basew .* dNqi(:,ii);
+            for jj = 1:k
+                NN   = gi  .* Nqj(:,jj);
+                NdN  = gi  .* dNqj(:,jj);
+                dNN  = gdi .* Nqj(:,jj);
+                dNdN = gdi .* dNqj(:,jj);
+
+
+                if ~isempty(A{1})
+                    kv = A{1}.' * dNdN;  
+                    H.stiffness.K{1}{1}(1, iloc(ii), jloc(jj), :) = ...
+                        H.stiffness.K{1}{1}(1, iloc(ii), jloc(jj), :) + reshape(kv, [1 1 1 RR(1)]);
                 end
-            elseif dim == 2
-                for i = l-hspace.space_of_level(level).degree(dim):l
-                    for j = l-hspace.space_of_level(level).degree(dim):l
-                        for r = 1:H.stiffness.R(1,dim)
-                            H.stiffness.K{dim}{1}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  = ...
-                                H.stiffness.K{dim}{1}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  + ((b-a)/2)*sum(w.*quadValues(i,:)'.*quadValues(j,:)'.*quadValues2'*H.stiffness.SVDU{1}{dim}(:,r));
-                        end
-                        for r = 1:H.stiffness.R(2,dim)
-                            H.stiffness.K{dim}{2}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  = ...
-                                H.stiffness.K{dim}{2}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  + ((b-a)/2)*sum(w.*quadValuesDeriv(i,:)'.*quadValues(j,:)'.*quadValues2'*H.stiffness.SVDU{2}{dim}(:,r));
-                            H.stiffness.K{dim}{4}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  = ...
-                                H.stiffness.K{dim}{4}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  + ((b-a)/2)*sum(w.*quadValues(i,:)'.*quadValuesDeriv(j,:)'.*quadValues2'*H.stiffness.SVDU{2}{dim}(:,r));
-                        end
-                        for r = 1:H.stiffness.R(3,dim)
-                            H.stiffness.K{dim}{3}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  = ...
-                                H.stiffness.K{dim}{3}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  + ((b-a)/2)*sum(w.*quadValues(i,:)'.*quadValues(j,:)'.*quadValues2'*H.stiffness.SVDU{3}{dim}(:,r));
-                            H.stiffness.K{dim}{7}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  = ...
-                                H.stiffness.K{dim}{7}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  + ((b-a)/2)*sum(w.*quadValues(i,:)'.*quadValues(j,:)'.*quadValues2'*H.stiffness.SVDU{3}{dim}(:,r));
-                        end
-                        for r = 1:H.stiffness.R(4,dim)
-                            H.stiffness.K{dim}{5}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  = ...
-                                H.stiffness.K{dim}{5}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  + ((b-a)/2)*sum(w.*quadValuesDeriv(i,:)'.*quadValuesDeriv(j,:)'.*quadValues2'*H.stiffness.SVDU{4}{dim}(:,r));
-                        end
-                        for r = 1:H.stiffness.R(5,dim)
-                            H.stiffness.K{dim}{6}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  = ...
-                                H.stiffness.K{dim}{6}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  + ((b-a)/2)*sum(w.*quadValues(i,:)'.*quadValuesDeriv(j,:)'.*quadValues2'*H.stiffness.SVDU{5}{dim}(:,r));
-                            H.stiffness.K{dim}{8}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  = ...
-                                H.stiffness.K{dim}{8}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  + ((b-a)/2)*sum(w.*quadValuesDeriv(i,:)'.*quadValues(j,:)'.*quadValues2'*H.stiffness.SVDU{5}{dim}(:,r));
-                        end
-                        for r = 1:H.stiffness.R(6,dim)
-                            H.stiffness.K{dim}{9}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  = ...
-                                H.stiffness.K{dim}{9}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  + ((b-a)/2)*sum(w.*quadValues(i,:)'.*quadValues(j,:)'.*quadValues2'*H.stiffness.SVDU{6}{dim}(:,r));
-                        end
-                    end
+
+                if ~isempty(A{2})
+                    kv = A{2}.' * NdN;
+                    H.stiffness.K{2}{1}(1, iloc(ii), jloc(jj), :) = ...
+                        H.stiffness.K{2}{1}(1, iloc(ii), jloc(jj), :) + reshape(kv, [1 1 1 RR(2)]);
+                    kv = A{2}.' * dNN;
+                    H.stiffness.K{4}{1}(1, iloc(ii), jloc(jj), :) = ...
+                        H.stiffness.K{4}{1}(1, iloc(ii), jloc(jj), :) + reshape(kv, [1 1 1 RR(2)]);
                 end
-            elseif dim == 3
-                for i = l-hspace.space_of_level(level).degree(dim):l
-                    for j = l-hspace.space_of_level(level).degree(dim):l
-                        for r = 1:H.stiffness.R(1,dim)
-                            H.stiffness.K{dim}{1}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  = ...
-                                H.stiffness.K{dim}{1}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  + ((b-a)/2)*sum(w.*quadValues(i,:)'.*quadValues(j,:)'.*quadValues2'*H.stiffness.SVDU{1}{dim}(:,r));
-                        end
-                        for r = 1:H.stiffness.R(2,dim)
-                            H.stiffness.K{dim}{2}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  = ...
-                                H.stiffness.K{dim}{2}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  + ((b-a)/2)*sum(w.*quadValues(i,:)'.*quadValues(j,:)'.*quadValues2'*H.stiffness.SVDU{2}{dim}(:,r));
-                            H.stiffness.K{dim}{4}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  = ...
-                                H.stiffness.K{dim}{4}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  + ((b-a)/2)*sum(w.*quadValues(i,:)'.*quadValues(j,:)'.*quadValues2'*H.stiffness.SVDU{2}{dim}(:,r));
-                        end
-                        for r = 1:H.stiffness.R(3,dim)
-                            H.stiffness.K{dim}{3}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  = ...
-                                H.stiffness.K{dim}{3}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  + ((b-a)/2)*sum(w.*quadValuesDeriv(i,:)'.*quadValues(j,:)'.*quadValues2'*H.stiffness.SVDU{3}{dim}(:,r));
-                            H.stiffness.K{dim}{7}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  = ...
-                                H.stiffness.K{dim}{7}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  + ((b-a)/2)*sum(w.*quadValues(i,:)'.*quadValuesDeriv(j,:)'.*quadValues2'*H.stiffness.SVDU{3}{dim}(:,r));
-                        end
-                        for r = 1:H.stiffness.R(4,dim)
-                            H.stiffness.K{dim}{5}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  = ...
-                                H.stiffness.K{dim}{5}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  + ((b-a)/2)*sum(w.*quadValues(i,:)'.*quadValues(j,:)'.*quadValues2'*H.stiffness.SVDU{4}{dim}(:,r));
-                        end
-                        for r = 1:H.stiffness.R(5,dim)
-                            H.stiffness.K{dim}{6}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  = ...
-                                H.stiffness.K{dim}{6}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  + ((b-a)/2)*sum(w.*quadValuesDeriv(i,:)'.*quadValues(j,:)'.*quadValues2'*H.stiffness.SVDU{5}{dim}(:,r));
-                            H.stiffness.K{dim}{8}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  = ...
-                                H.stiffness.K{dim}{8}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  + ((b-a)/2)*sum(w.*quadValues(i,:)'.*quadValuesDeriv(j,:)'.*quadValues2'*H.stiffness.SVDU{5}{dim}(:,r));
-                        end
-                        for r = 1:H.stiffness.R(6,dim)
-                            H.stiffness.K{dim}{9}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  = ...
-                                H.stiffness.K{dim}{9}{r}(cuboid_splines_level{level_ind}.shifted_indices{dim}(i),cuboid_splines_level{level_ind}.shifted_indices{dim}(j))  + ((b-a)/2)*sum(w.*quadValuesDeriv(i,:)'.*quadValuesDeriv(j,:)'.*quadValues2'*H.stiffness.SVDU{6}{dim}(:,r));
-                        end
-                    end
+
+                if ~isempty(A{3})
+                    kv = A{3}.' * NdN;
+                    H.stiffness.K{3}{1}(1, iloc(ii), jloc(jj), :) = ...
+                        H.stiffness.K{3}{1}(1, iloc(ii), jloc(jj), :) + reshape(kv, [1 1 1 RR(3)]);
+                    kv = A{3}.' * dNN;
+                    H.stiffness.K{7}{1}(1, iloc(ii), jloc(jj), :) = ...
+                        H.stiffness.K{7}{1}(1, iloc(ii), jloc(jj), :) + reshape(kv, [1 1 1 RR(3)]);
+                end
+
+                if ~isempty(A{4})
+                    kv = A{4}.' * NN;
+                    H.stiffness.K{5}{1}(1, iloc(ii), jloc(jj), :) = ...
+                        H.stiffness.K{5}{1}(1, iloc(ii), jloc(jj), :) + reshape(kv, [1 1 1 RR(4)]);
+                end
+
+                if ~isempty(A{5})
+                    kv = A{5}.' * NN;
+                    H.stiffness.K{6}{1}(1, iloc(ii), jloc(jj), :) = ...
+                        H.stiffness.K{6}{1}(1, iloc(ii), jloc(jj), :) + reshape(kv, [1 1 1 RR(5)]);
+                    H.stiffness.K{8}{1}(1, iloc(ii), jloc(jj), :) = ...
+                        H.stiffness.K{8}{1}(1, iloc(ii), jloc(jj), :) + reshape(kv, [1 1 1 RR(5)]);
+                end
+
+                if ~isempty(A{6})
+                    kv = A{6}.' * NN;
+                    H.stiffness.K{9}{1}(1, iloc(ii), jloc(jj), :) = ...
+                        H.stiffness.K{9}{1}(1, iloc(ii), jloc(jj), :) + reshape(kv, [1 1 1 RR(6)]);
+                end
+            end
+        end
+    end
+
+
+    d = 2;
+    deg = hspace.space_of_level(level).degree(d);
+    kts = hspace.space_of_level(level).knots{d};
+
+    for l = knot_area{d}
+        a = kts(l); b = kts(l+1);
+        xx = (b-a)/2*s + (a+b)/2;  J = (b-a)/2;
+
+        N    = evalBSpline(      kts, deg, xx);         
+        dN   = evalBSplineDeriv( kts, deg, xx);     
+        Wd   = evalBSpline(H.weightFun.knots{d}, H.weightFun.degree(d), xx);
+
+        A = cell(6,1); RL = zeros(6,1); RR = zeros(6,1);
+        for c = 1:6
+            if isempty(core_w{c}), continue; end
+            rL = size(core_w{c}{d},1); rR = size(core_w{c}{d},3);
+            C  = reshape(permute(core_w{c}{d}, [2 3 1]), [], rR*rL); 
+            A{c} = Wd.' * C;                                         
+            RL(c) = rL; RR(c) = rR;
+        end
+
+        isup = (l-deg):l; jsup = isup;
+        iloc = cuboid_splines_level{level_ind}.shifted_indices{d}(isup);
+        jloc = cuboid_splines_level{level_ind}.shifted_indices{d}(jsup);
+
+        Nqi   = N(isup,:).';    dNqi = dN(isup,:).';
+        Nqj   = N(jsup,:).';    dNqj = dN(jsup,:).';
+        basew = J .* w;         k   = numel(isup);
+
+        for ii = 1:k
+            gi  = basew .* Nqi(:,ii);
+            gdi = basew .* dNqi(:,ii);
+            for jj = 1:k
+                NN   = gi  .* Nqj(:,jj);
+                NdN  = gi  .* dNqj(:,jj);
+                dNN  = gdi .* Nqj(:,jj);
+                dNdN = gdi .* dNqj(:,jj);
+
+
+                place = @(blk,kv,rl,rr) ...
+                    setfield([], 'A', reshape(kv, [rr, rl]).'); 
+
+
+                if ~isempty(A{1})
+                    kv = A{1}.' * NN;                       
+                    M  = reshape(kv, [RR(1), RL(1)]).';    
+                    H.stiffness.K{1}{2}(:, iloc(ii), jloc(jj), :) = ...
+                        H.stiffness.K{1}{2}(:, iloc(ii), jloc(jj), :) + reshape(M, [RL(1),1,1,RR(1)]);
+                end
+
+                if ~isempty(A{2})
+                    kv = A{2}.' * dNN;
+                    M  = reshape(kv, [RR(2), RL(2)]).';
+                    H.stiffness.K{2}{2}(:, iloc(ii), jloc(jj), :) = ...
+                        H.stiffness.K{2}{2}(:, iloc(ii), jloc(jj), :) + reshape(M, [RL(2),1,1,RR(2)]);
+                    kv = A{2}.' * NdN;
+                    M  = reshape(kv, [RR(2), RL(2)]).';
+                    H.stiffness.K{4}{2}(:, iloc(ii), jloc(jj), :) = ...
+                        H.stiffness.K{4}{2}(:, iloc(ii), jloc(jj), :) + reshape(M, [RL(2),1,1,RR(2)]);
+                end
+
+                if ~isempty(A{3})
+                    kv = A{3}.' * NN;
+                    M  = reshape(kv, [RR(3), RL(3)]).';
+                    H.stiffness.K{3}{2}(:, iloc(ii), jloc(jj), :) = ...
+                        H.stiffness.K{3}{2}(:, iloc(ii), jloc(jj), :) + reshape(M, [RL(3),1,1,RR(3)]);
+                    H.stiffness.K{7}{2}(:, iloc(ii), jloc(jj), :) = ...
+                        H.stiffness.K{7}{2}(:, iloc(ii), jloc(jj), :) + reshape(M, [RL(3),1,1,RR(3)]);
+                end
+      
+                if ~isempty(A{4})
+                    kv = A{4}.' * dNdN;
+                    M  = reshape(kv, [RR(4), RL(4)]).';
+                    H.stiffness.K{5}{2}(:, iloc(ii), jloc(jj), :) = ...
+                        H.stiffness.K{5}{2}(:, iloc(ii), jloc(jj), :) + reshape(M, [RL(4),1,1,RR(4)]);
+                end
+
+                if ~isempty(A{5})
+                    kv = A{5}.' * NdN;
+                    M  = reshape(kv, [RR(5), RL(5)]).';
+                    H.stiffness.K{6}{2}(:, iloc(ii), jloc(jj), :) = ...
+                        H.stiffness.K{6}{2}(:, iloc(ii), jloc(jj), :) + reshape(M, [RL(5),1,1,RR(5)]);
+                    kv = A{5}.' * dNN;
+                    M  = reshape(kv, [RR(5), RL(5)]).';
+                    H.stiffness.K{8}{2}(:, iloc(ii), jloc(jj), :) = ...
+                        H.stiffness.K{8}{2}(:, iloc(ii), jloc(jj), :) + reshape(M, [RL(5),1,1,RR(5)]);
+                end
+
+                if ~isempty(A{6})
+                    kv = A{6}.' * NN;
+                    M  = reshape(kv, [RR(6), RL(6)]).';
+                    H.stiffness.K{9}{2}(:, iloc(ii), jloc(jj), :) = ...
+                        H.stiffness.K{9}{2}(:, iloc(ii), jloc(jj), :) + reshape(M, [RL(6),1,1,RR(6)]);
+                end
+            end
+        end
+    end
+
+    d = 3;
+    deg = hspace.space_of_level(level).degree(d);
+    kts = hspace.space_of_level(level).knots{d};
+
+    for l = knot_area{d}
+        a = kts(l); b = kts(l+1);
+        xx = (b-a)/2*s + (a+b)/2;  J = (b-a)/2;
+
+        N    = evalBSpline(      kts, deg, xx);         
+        dN   = evalBSplineDeriv( kts, deg, xx);        
+        Wd   = evalBSpline(H.weightFun.knots{d}, H.weightFun.degree(d), xx);
+
+        A = cell(6,1); RL = zeros(6,1); RR = zeros(6,1);
+        for c = 1:6
+            if isempty(core_w{c}), continue; end
+            rL = size(core_w{c}{d},1); rR = size(core_w{c}{d},3); 
+            C  = reshape(permute(core_w{c}{d}, [2 3 1]), [], rR*rL);
+            A{c} = Wd.' * C;                                   
+            RL(c) = rL; RR(c) = rR;
+        end
+
+        isup = (l-deg):l; jsup = isup;
+        iloc = cuboid_splines_level{level_ind}.shifted_indices{d}(isup);
+        jloc = cuboid_splines_level{level_ind}.shifted_indices{d}(jsup);
+
+        Nqi   = N(isup,:).';    dNqi = dN(isup,:).';
+        Nqj   = N(jsup,:).';    dNqj = dN(jsup,:).';
+        basew = J .* w;         k   = numel(isup);
+
+        for ii = 1:k
+            gi  = basew .* Nqi(:,ii);
+            gdi = basew .* dNqi(:,ii);
+            for jj = 1:k
+                NN   = gi  .* Nqj(:,jj);
+                NdN  = gi  .* dNqj(:,jj);
+                dNN  = gdi .* Nqj(:,jj);
+                dNdN = gdi .* dNqj(:,jj);
+
+
+                if ~isempty(A{1})
+                    kv = A{1}.' * NN;                       
+                    H.stiffness.K{1}{3}(:, iloc(ii), jloc(jj)) = ...
+                        H.stiffness.K{1}{3}(:, iloc(ii), jloc(jj)) + kv(:);
+                end
+
+                if ~isempty(A{2})
+                    kv = A{2}.' * NN;
+                    H.stiffness.K{2}{3}(:, iloc(ii), jloc(jj)) = ...
+                        H.stiffness.K{2}{3}(:, iloc(ii), jloc(jj)) + kv(:);
+                    H.stiffness.K{4}{3}(:, iloc(ii), jloc(jj)) = ...
+                        H.stiffness.K{4}{3}(:, iloc(ii), jloc(jj)) + kv(:);
+                end
+
+                if ~isempty(A{3})
+                    kv = A{3}.' * dNN;
+                    H.stiffness.K{3}{3}(:, iloc(ii), jloc(jj)) = ...
+                        H.stiffness.K{3}{3}(:, iloc(ii), jloc(jj)) + kv(:);
+                    kv = A{3}.' * NdN;
+                    H.stiffness.K{7}{3}(:, iloc(ii), jloc(jj)) = ...
+                        H.stiffness.K{7}{3}(:, iloc(ii), jloc(jj)) + kv(:);
+                end
+
+                if ~isempty(A{4})
+                    kv = A{4}.' * NN;
+                    H.stiffness.K{5}{3}(:, iloc(ii), jloc(jj)) = ...
+                        H.stiffness.K{5}{3}(:, iloc(ii), jloc(jj)) + kv(:);
+                end
+
+                if ~isempty(A{5})
+                    kv = A{5}.' * dNN;
+                    H.stiffness.K{6}{3}(:, iloc(ii), jloc(jj)) = ...
+                        H.stiffness.K{6}{3}(:, iloc(ii), jloc(jj)) + kv(:);
+                    kv = A{5}.' * NdN;
+                    H.stiffness.K{8}{3}(:, iloc(ii), jloc(jj)) = ...
+                        H.stiffness.K{8}{3}(:, iloc(ii), jloc(jj)) + kv(:);
+                end
+
+                if ~isempty(A{6})
+                    kv = A{6}.' * dNdN;
+                    H.stiffness.K{9}{3}(:, iloc(ii), jloc(jj)) = ...
+                        H.stiffness.K{9}{3}(:, iloc(ii), jloc(jj)) + kv(:);
                 end
             end
         end

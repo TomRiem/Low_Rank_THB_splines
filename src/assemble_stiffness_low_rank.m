@@ -109,7 +109,7 @@ function [TT_K, K_full, low_rank_data, time] = assemble_stiffness_low_rank(H, hm
     end
     level(l_d) = [];
     nlevels = numel(level);
-    TT_K_all = cell(nlevels, nlevels);
+    TT_K = cell(nlevels, nlevels);
     C = cell(nlevels-1, 1);
     cuboid_splines_level = cell(nlevels, 1);
     cuboid_cells = cell(nlevels, 1);
@@ -126,33 +126,35 @@ function [TT_K, K_full, low_rank_data, time] = assemble_stiffness_low_rank(H, hm
                         cuboid_cells{i_lev}.n_active_cuboids ~= 0) || cuboid_cells{i_lev}.n_not_active_cuboids == 0
                     %%%%%%% Alle Splines werden nur über den aktiven
                     %%%%%%% Zellen integriert
-                    [TT_K_all{i_lev,i_lev}] = assemble_stiffness_level_bsplines_1(H, level(i_lev), i_lev, ...
+                    [TT_K{i_lev,i_lev}] = assemble_stiffness_level_bsplines_1(H, level(i_lev), i_lev, ...
                         cuboid_cells, cuboid_splines_level, hspace, hmsh, low_rank_data);
                 else
                     %%%%%%%% Alle Splines werden über alle Zellen integriert und
                     %%%%%%%% die deaktivierten Zellen werden abgezogen
-                    [TT_K_all{i_lev,i_lev}] = assemble_stiffness_level_bsplines_2(H, level(i_lev), i_lev, ...
+                    [TT_K{i_lev,i_lev}] = assemble_stiffness_level_bsplines_2(H, level(i_lev), i_lev, ...
                         cuboid_cells, cuboid_splines_level, hspace, hmsh, low_rank_data);
                 end
                 if level(i_lev) > 1 && i_lev > 1
                     C{i_lev-1} = basis_change_bsplines_truncated(level, i_lev, hspace, cuboid_splines_level, low_rank_data);
                 end
-                CT_K_C = TT_K_all{i_lev,i_lev};
-                K_C = TT_K_all{i_lev,i_lev};
+                CT_K_C = TT_K{i_lev,i_lev};
+                K_C = TT_K{i_lev,i_lev};
                 for j_lev = (i_lev-1):-1:1
                     CT_K_C = round(C{j_lev}' * CT_K_C * C{j_lev}, low_rank_data.rankTol);
                     K_C = round(K_C * C{j_lev}, low_rank_data.rankTol);
-                    TT_K_all{j_lev,j_lev} = round(TT_K_all{j_lev,j_lev} + ...
+                    TT_K{j_lev,j_lev} = round(TT_K{j_lev,j_lev} + ...
                         CT_K_C, low_rank_data.rankTol);
-                    TT_K_all{i_lev,j_lev} = K_C;
-                    TT_K_all_tmp = TT_K_all{i_lev,j_lev};
+                    TT_K{i_lev,j_lev} = K_C;
+                    TT_K_tmp = TT_K{i_lev,j_lev};
                     for k_lev = (i_lev-1):-1:(j_lev+1)
-                        TT_K_all_tmp = round(C{k_lev}'*TT_K_all_tmp, low_rank_data.rankTol);
-                        TT_K_all{k_lev, j_lev} = round(TT_K_all{k_lev, j_lev} + ...
-                            TT_K_all_tmp, low_rank_data.rankTol);
+                        TT_K_tmp = round(C{k_lev}'*TT_K_tmp, low_rank_data.rankTol);
+                        TT_K{k_lev, j_lev} = round(TT_K{k_lev, j_lev} + ...
+                            TT_K_tmp, low_rank_data.rankTol);
                     end
                 end
+                clear CT_K_C K_C TT_K_tmp
             end
+            clear C
         else
             for i_lev = 1:nlevels
                 splines_on_active_cell = sp_get_basis_functions(hspace.space_of_level(level(i_lev)), ...
@@ -165,33 +167,35 @@ function [TT_K, K_full, low_rank_data, time] = assemble_stiffness_low_rank(H, hm
                         cuboid_cells{i_lev}.n_active_cuboids ~= 0) || cuboid_cells{i_lev}.n_not_active_cuboids == 0
                     %%%%%%% Alle Splines werden nur über den aktiven
                     %%%%%%% Zellen integriert
-                    [TT_K_all{i_lev,i_lev}] = assemble_stiffness_level_bsplines_1(H, level(i_lev), i_lev, ...
+                    [TT_K{i_lev,i_lev}] = assemble_stiffness_level_bsplines_1(H, level(i_lev), i_lev, ...
                         cuboid_cells, cuboid_splines_level, hspace, hmsh, low_rank_data);
                 else
                     %%%%%%%% Alle Splines werden über alle Zellen integriert und
                     %%%%%%%% die deaktivierten Zellen werden abgezogen
-                    [TT_K_all{i_lev,i_lev}] = assemble_stiffness_level_bsplines_2(H, level(i_lev), i_lev, ...
+                    [TT_K{i_lev,i_lev}] = assemble_stiffness_level_bsplines_2(H, level(i_lev), i_lev, ...
                         cuboid_cells, cuboid_splines_level, hspace, hmsh, low_rank_data);
                 end
                 if level(i_lev) > 1 && i_lev > 1
                     C{i_lev-1} = basis_change_bsplines(level, i_lev, hspace, cuboid_splines_level, low_rank_data);
                 end
-                CT_K_C = TT_K_all{i_lev,i_lev};
-                K_C = TT_K_all{i_lev,i_lev};
+                CT_K_C = TT_K{i_lev,i_lev};
+                K_C = TT_K{i_lev,i_lev};
                 for j_lev = (i_lev-1):-1:1
                     CT_K_C = round(C{j_lev}' * CT_K_C * C{j_lev}, low_rank_data.rankTol);
                     K_C = round(K_C * C{j_lev}, low_rank_data.rankTol);
-                    TT_K_all{j_lev,j_lev} = round(TT_K_all{j_lev,j_lev} + ...
+                    TT_K{j_lev,j_lev} = round(TT_K{j_lev,j_lev} + ...
                         CT_K_C, low_rank_data.rankTol);
-                    TT_K_all{i_lev,j_lev} = K_C;
-                    TT_K_all_tmp = TT_K_all{i_lev,j_lev};
+                    TT_K{i_lev,j_lev} = K_C;
+                    TT_K_tmp = TT_K{i_lev,j_lev};
                     for k_lev = (i_lev-1):-1:(j_lev+1)
-                        TT_K_all_tmp = round(C{k_lev}'*TT_K_all_tmp, low_rank_data.rankTol);
-                        TT_K_all{k_lev, j_lev} = round(TT_K_all{k_lev, j_lev} + ...
-                            TT_K_all_tmp, low_rank_data.rankTol);
+                        TT_K_tmp = round(C{k_lev}'*TT_K_tmp, low_rank_data.rankTol);
+                        TT_K{k_lev, j_lev} = round(TT_K{k_lev, j_lev} + ...
+                            TT_K_tmp, low_rank_data.rankTol);
                     end
                 end
+                clear CT_K_C K_C TT_K_tmp
             end
+            clear C
         end
     else
         Tweights = cell(nlevels, 1);
@@ -209,33 +213,35 @@ function [TT_K, K_full, low_rank_data, time] = assemble_stiffness_low_rank(H, hm
                         cuboid_cells{i_lev}.n_active_cuboids ~= 0) || cuboid_cells{i_lev}.n_not_active_cuboids == 0
                     %%%%%%% Alle Splines werden nur über den aktiven
                     %%%%%%% Zellen integriert
-                    [TT_K_all{i_lev,i_lev}] = assemble_stiffness_level_nurbs_1(H, Tweights, level(i_lev), i_lev, ...
+                    [TT_K{i_lev,i_lev}] = assemble_stiffness_level_nurbs_1(H, Tweights, level(i_lev), i_lev, ...
                         cuboid_cells, cuboid_splines_level, hspace, hmsh, low_rank_data);
                 else
                     %%%%%%%% Alle Splines werden über alle Zellen integriert und
                     %%%%%%%% die deaktivierten Zellen werden abgezogen
-                    [TT_K_all{i_lev,i_lev}] = assemble_stiffness_level_nurbs_2(H, Tweights, level(i_lev), i_lev, ...
+                    [TT_K{i_lev,i_lev}] = assemble_stiffness_level_nurbs_2(H, Tweights, level(i_lev), i_lev, ...
                         cuboid_cells, cuboid_splines_level, hspace, hmsh, low_rank_data);
                 end
                 if level(i_lev) > 1 && i_lev > 1
                     C{i_lev-1} = basis_change_nurbs_truncated(Tweights, level, i_lev, hspace, cuboid_splines_level, low_rank_data);
                 end
-                CT_K_C = TT_K_all{i_lev,i_lev};
-                K_C = TT_K_all{i_lev,i_lev};
+                CT_K_C = TT_K{i_lev,i_lev};
+                K_C = TT_K{i_lev,i_lev};
                 for j_lev = (i_lev-1):-1:1
                     CT_K_C = round(C{j_lev}' * CT_K_C * C{j_lev}, low_rank_data.rankTol);
                     K_C = round(K_C * C{j_lev}, low_rank_data.rankTol);
-                    TT_K_all{j_lev,j_lev} = round(TT_K_all{j_lev,j_lev} + ...
+                    TT_K{j_lev,j_lev} = round(TT_K{j_lev,j_lev} + ...
                         CT_K_C, low_rank_data.rankTol);
-                    TT_K_all{i_lev,j_lev} = K_C;
-                    TT_K_all_tmp = TT_K_all{i_lev,j_lev};
+                    TT_K{i_lev,j_lev} = K_C;
+                    TT_K_tmp = TT_K{i_lev,j_lev};
                     for k_lev = (i_lev-1):-1:(j_lev+1)
-                        TT_K_all_tmp = round(C{k_lev}'*TT_K_all_tmp, low_rank_data.rankTol);
-                        TT_K_all{k_lev, j_lev} = round(TT_K_all{k_lev, j_lev} + ...
-                            TT_K_all_tmp, low_rank_data.rankTol);
+                        TT_K_tmp = round(C{k_lev}'*TT_K_tmp, low_rank_data.rankTol);
+                        TT_K{k_lev, j_lev} = round(TT_K{k_lev, j_lev} + ...
+                            TT_K_tmp, low_rank_data.rankTol);
                     end
                 end
+                clear CT_K_C K_C TT_K_tmp
             end
+            clear C
         else
             for i_lev = 1:nlevels
                 weights = reshape(hspace.space_of_level(level(i_lev)).weights, hspace.space_of_level(level(i_lev)).ndof_dir);
@@ -250,39 +256,41 @@ function [TT_K, K_full, low_rank_data, time] = assemble_stiffness_low_rank(H, hm
                         cuboid_cells{i_lev}.n_active_cuboids ~= 0) || cuboid_cells{i_lev}.n_not_active_cuboids == 0
                     %%%%%%% Alle Splines werden nur über den aktiven
                     %%%%%%% Zellen integriert
-                    [TT_K_all{i_lev,i_lev}] = assemble_stiffness_level_nurbs_1(H, Tweights, level(i_lev), i_lev, ...
+                    [TT_K{i_lev,i_lev}] = assemble_stiffness_level_nurbs_1(H, Tweights, level(i_lev), i_lev, ...
                         cuboid_cells, cuboid_splines_level, hspace, hmsh, low_rank_data);
                 else
                     %%%%%%%% Alle Splines werden über alle Zellen integriert und
                     %%%%%%%% die deaktivierten Zellen werden abgezogen
-                    [TT_K_all{i_lev,i_lev}] = assemble_stiffness_level_nurbs_2(H, Tweights, level(i_lev), i_lev, ...
+                    [TT_K{i_lev,i_lev}] = assemble_stiffness_level_nurbs_2(H, Tweights, level(i_lev), i_lev, ...
                         cuboid_cells, cuboid_splines_level, hspace, hmsh, low_rank_data);
                 end
                 if level(i_lev) > 1 && i_lev > 1
                     C{i_lev-1} = basis_change_nurbs(Tweights, level, i_lev, hspace, cuboid_splines_level, low_rank_data);
                 end
-                CT_K_C = TT_K_all{i_lev,i_lev};
-                K_C = TT_K_all{i_lev,i_lev};
+                CT_K_C = TT_K{i_lev,i_lev};
+                K_C = TT_K{i_lev,i_lev};
                 for j_lev = (i_lev-1):-1:1
                     CT_K_C = round(C{j_lev}' * CT_K_C * C{j_lev}, low_rank_data.rankTol);
                     K_C = round(K_C * C{j_lev}, low_rank_data.rankTol);
-                    TT_K_all{j_lev,j_lev} = round(TT_K_all{j_lev,j_lev} + ...
+                    TT_K{j_lev,j_lev} = round(TT_K{j_lev,j_lev} + ...
                         CT_K_C, low_rank_data.rankTol);
-                    TT_K_all{i_lev,j_lev} = K_C;
-                    TT_K_all_tmp = TT_K_all{i_lev,j_lev};
+                    TT_K{i_lev,j_lev} = K_C;
+                    TT_K_tmp = TT_K{i_lev,j_lev};
                     for k_lev = (i_lev-1):-1:(j_lev+1)
-                        TT_K_all_tmp = round(C{k_lev}'*TT_K_all_tmp, low_rank_data.rankTol);
-                        TT_K_all{k_lev, j_lev} = round(TT_K_all{k_lev, j_lev} + ...
-                            TT_K_all_tmp, low_rank_data.rankTol);
+                        TT_K_tmp = round(C{k_lev}'*TT_K_tmp, low_rank_data.rankTol);
+                        TT_K{k_lev, j_lev} = round(TT_K{k_lev, j_lev} + ...
+                            TT_K_tmp, low_rank_data.rankTol);
                     end
                 end
+                clear CT_K_C K_C TT_K_tmp
             end
+            clear C
         end
     end
     if isfield(low_rank_data,'block_format') && all(low_rank_data.block_format == 1)
-        [TT_K, cuboid_splines_system, low_rank_data] = assemble_system_format_1(TT_K_all, level, hspace, nlevels, cuboid_splines_level, low_rank_data);
+        [TT_K, cuboid_splines_system, low_rank_data] = assemble_system_format_1(TT_K, level, hspace, nlevels, cuboid_splines_level, low_rank_data);
     else
-        [TT_K, cuboid_splines_system, low_rank_data] = assemble_system_format_2(TT_K_all, level, hspace, nlevels, cuboid_splines_level, low_rank_data);
+        [TT_K, cuboid_splines_system, low_rank_data] = assemble_system_format_2(TT_K, level, hspace, nlevels, cuboid_splines_level, low_rank_data);
     end
     time = toc(time);
     

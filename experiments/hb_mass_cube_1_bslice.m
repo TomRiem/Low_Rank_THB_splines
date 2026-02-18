@@ -62,7 +62,7 @@
 %             ndof, and NORMEST(mass_mat(int,int)).
 %       - For each tolerance tol:
 %           * Interpolate geometry weights in TT:
-%               [H, t_int] = ADAPTIVITY_INTERPOLATION_SYSTEM(geometry, low_rank_data)
+%               [H, t_int] = interpolation_system(geometry, low_rank_data)
 %               with low_rank_data.rankTol = tol.
 %           * Low-rank mass assembly (block format 1, full_system=1):
 %               [TT_M, M_full, low_rank_data, t_assemble] = ASSEMBLE_MASS_LOW_RANK(...)
@@ -103,7 +103,7 @@
 % --------------------
 % • Requires GeoPDEs (mesh/space/adaptivity/assembly) and TT-Toolbox (TT algebra).
 % • Key helpers: ADAPTIVITY_INITIALIZE_LAPLACE, MARK_ADMISSIBLE, HMSH_REFINE,
-%   HSPACE_REFINE, ADAPTIVITY_INTERPOLATION_SYSTEM, ASSEMBLE_MASS_LOW_RANK,
+%   HSPACE_REFINE, interpolation_system, ASSEMBLE_MASS_LOW_RANK,
 %   OP_U_V_HIER, SP_DRCHLT_L2_PROJ, RecursiveSize.
 % • Dirichlet elimination: comparisons use the “interior” block obtained by
 %   removing Dirichlet DoFs from both the reference and low-rank matrices.
@@ -146,7 +146,7 @@ clear method_data
 
 clear low_rank_data  
 low_rank_data.refinement = 1;     
-low_rank_data.discardFull = 1;    
+low_rank_data.discardFull = 0;    
 low_rank_data.plotW =  0;         
 low_rank_data.lowRank = 1;        
 low_rank_data.mass = 1;           
@@ -241,7 +241,7 @@ for i_deg = 1:degrees_n
 
             low_rank_data.rankTol = tol(i_tol);
 
-            [H, t_int] = adaptivity_interpolation_system(geometry, low_rank_data);
+            [H, t_int] = interpolation_system(geometry, low_rank_data);
 
             results_1.time_interpolation{i_deg, i_tol} = [results_1.time_interpolation{i_deg, i_tol}, t_int];
 

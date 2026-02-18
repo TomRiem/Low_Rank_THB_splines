@@ -365,5 +365,3 @@ function [H, rhs, opt] = interpolate_weights_bsplines(G, opt)
 
 
 end
-
-
